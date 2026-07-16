@@ -1,0 +1,243 @@
+import json
+import os
+from pathlib import Path
+import pytest
+from src.models import Product
+from src.content.caption import generate_instagram_caption
+from src.content.whatsapp_msg import generate_whatsapp_message
+from src.pipeline import ProgressTracker, Pipeline
+from src.interfaces import SheetClient, ImageGenerator, InstagramPublisher, WhatsAppPublisher
+
+# ---------------------------------------------------------
+# Test Content Generators (JIRA-31)
+# ---------------------------------------------------------
+
+def test_generate_instagram_caption():
+    product = Product(
+        row_index=2,
+        name="Samsung Galaxy Buds",
+        affiliate_link="https://amazon.in/buds",
+        rating="4.6",
+        price="₹3499",
+        provider="Amazon",
+        insta_flag="N",
+        whatsapp_flag="N"
+    )
+    caption = generate_instagram_caption(product)
+    
+    assert "Deal Alert" in caption
+    assert "Samsung Galaxy Buds" in caption
+    assert "⭐ 4.6 Rating" in caption
+    assert "💰 ₹3499" in caption
+    assert "https://amazon.in/buds" in caption
+    assert "#amazon" in caption
+    assert "#deal" in caption
+
+
+def test_generate_whatsapp_message():
+    product = Product(
+        row_index=2,
+        name="Samsung Galaxy Buds",
+        affiliate_link="https://amazon.in/buds",
+        rating="4.6",
+        price="₹3499",
+        provider="Amazon",
+        insta_flag="N",
+        whatsapp_flag="N"
+    )
+    message = generate_whatsapp_message(product)
+    
+    assert "New Deal" in message
+    assert "Samsung Galaxy Buds" in message
+    assert "₹3499" in message
+    assert "⭐ 4.6" in message
+    assert "https://amazon.in/buds" in message
+
+# ---------------------------------------------------------
+# Test Progress Tracker (JIRA-31)
+# ---------------------------------------------------------
+
+def test_progress_tracker(tmp_path):
+    progress_file = tmp_path / "publish_progress.json"
+    tracker = ProgressTracker(progress_file)
+    
+    link = "https://example.com/item"
+    
+    # Init state
+    prog = tracker.get_progress(link)
+    assert not prog["instagram_success"]
+    assert not prog["whatsapp_success"]
+    
+    # Update state
+    tracker.update_progress(link, "instagram_success", True)
+    
+    # Verify file reload
+    tracker_new = ProgressTracker(progress_file)
+    prog_new = tracker_new.get_progress(link)
+    assert prog_new["instagram_success"] is True
+    assert prog_new["whatsapp_success"] is False
+    
+    # Clear state
+    tracker.clear_progress(link)
+    assert tracker.get_progress(link) == {"instagram_success": False, "whatsapp_success": False}
+
+# ---------------------------------------------------------
+# Mock Clients for E2E Pipeline Testing (JIRA-32, JIRA-33)
+# ---------------------------------------------------------
+
+class MockSheetClient(SheetClient):
+    def __init__(self, product: Product):
+        self.product = product
+        self.marked_completed = False
+
+    def get_pending_product(self):
+        return self.product if (self.product.insta_flag == "N" or self.product.whatsapp_flag == "N") else None
+
+    def mark_product_completed(self, product: Product):
+        self.marked_completed = True
+        self.product.insta_flag = "Y"
+        self.product.whatsapp_flag = "Y"
+        return True
+
+
+class MockImageGenerator(ImageGenerator):
+    def __init__(self):
+        self.cleaned_up = False
+
+    def download_image(self, url: str) -> str:
+        return "temp/downloaded.jpg"
+
+    def generate_creative(self, product: Product, img_path: str) -> str:
+        return "temp/creative.png"
+
+    def cleanup(self) -> None:
+        self.cleaned_up = True
+
+
+class MockInstagramPublisher(InstagramPublisher):
+    def __init__(self, should_fail=False):
+        self.should_fail = should_fail
+        self.published = False
+
+    def login(self):
+        return True
+
+    def publish(self, image_path: str, caption: str):
+        if self.should_fail:
+            return False
+        self.published = True
+        return True
+
+
+class MockWhatsAppPublisher(WhatsAppPublisher):
+    def __init__(self, should_fail=False):
+        self.should_fail = should_fail
+        self.message_sent = False
+
+    def send_message(self, text: str):
+        if self.should_fail:
+            return False
+        self.message_sent = True
+        return True
+
+# ---------------------------------------------------------
+# Integration & Pipeline E2E Test Runs
+# ---------------------------------------------------------
+
+def test_pipeline_success_run(tmp_path):
+    progress_file = tmp_path / "publish_progress.json"
+    
+    product = Product(
+        row_index=2,
+        name="Test Item",
+        affiliate_link="https://test.link",
+        rating="5.0",
+        price="Free",
+        provider="Mock",
+        insta_flag="N",
+        whatsapp_flag="N"
+    )
+    
+    sheet = MockSheetClient(product)
+    image_gen = MockImageGenerator()
+    insta = MockInstagramPublisher()
+    whatsapp = MockWhatsAppPublisher()
+    
+    pipeline = Pipeline(sheet, image_gen, insta, whatsapp, str(progress_file))
+    
+    # Run once
+    processed = pipeline.run_once()
+    assert processed is True
+    
+    # Assert publications succeeded
+    assert insta.published is True
+    assert whatsapp.message_sent is True
+    
+    # Assert transaction completed and Sheet flags updated to Y
+    assert sheet.marked_completed is True
+    assert product.insta_flag == "Y"
+    assert product.whatsapp_flag == "Y"
+    
+    # Check that temporary assets cleanup was called
+    assert image_gen.cleaned_up is True
+    
+    # Check progress tracker state is empty
+    tracker = ProgressTracker(progress_file)
+    assert tracker.get_progress("https://test.link") == {"instagram_success": False, "whatsapp_success": False}
+
+
+def test_pipeline_partial_failure_idempotent_retry(tmp_path):
+    progress_file = tmp_path / "publish_progress.json"
+    
+    product = Product(
+        row_index=3,
+        name="Retry Item",
+        affiliate_link="https://retry.link",
+        rating="4.0",
+        price="$10",
+        provider="Mock",
+        insta_flag="N",
+        whatsapp_flag="N"
+    )
+    
+    sheet = MockSheetClient(product)
+    image_gen = MockImageGenerator()
+    
+    # Step 1: Instagram succeeds, WhatsApp fails
+    insta = MockInstagramPublisher(should_fail=False)
+    whatsapp = MockWhatsAppPublisher(should_fail=True)
+    
+    pipeline = Pipeline(sheet, image_gen, insta, whatsapp, str(progress_file))
+    processed = pipeline.run_once()
+    
+    assert processed is True
+    assert insta.published is True
+    assert whatsapp.message_sent is False
+    assert sheet.marked_completed is False  # Transaction not complete
+    assert product.insta_flag == "N"         # Left as N in sheet
+    
+    # Check progress tracker recorded Instagram success but WhatsApp failure
+    tracker = ProgressTracker(progress_file)
+    progress_state = tracker.get_progress("https://retry.link")
+    assert progress_state["instagram_success"] is True
+    assert progress_state["whatsapp_success"] is False
+    
+    # Step 2: Next scheduler run (WhatsApp succeeds this time)
+    insta_retry = MockInstagramPublisher(should_fail=False)  # Should not be called
+    whatsapp_retry = MockWhatsAppPublisher(should_fail=False)
+    
+    pipeline_retry = Pipeline(sheet, image_gen, insta_retry, whatsapp_retry, str(progress_file))
+    processed_retry = pipeline_retry.run_once()
+    
+    assert processed_retry is True
+    assert insta_retry.published is False      # Skipped duplicate Instagram posting!
+    assert whatsapp_retry.message_sent is True  # Sent successfully on retry
+    
+    # Verify final completion
+    assert sheet.marked_completed is True
+    assert product.insta_flag == "Y"
+    assert product.whatsapp_flag == "Y"
+    
+    # Log must be empty now
+    tracker_final = ProgressTracker(progress_file)
+    assert tracker_final.get_progress("https://retry.link") == {"instagram_success": False, "whatsapp_success": False}
