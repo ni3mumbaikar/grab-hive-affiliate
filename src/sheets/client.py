@@ -22,13 +22,13 @@ class GoogleSheetClient(SheetClient):
         # Connect to sheet
         self._connect()
 
-    def _execute_with_retry(self, func, *args, max_retries: int = 3, initial_delay: float = 2.0, **kwargs):
+    def _execute_with_retry(self, func, *args, max_retries: int = 3, initial_delay: float = 2.0, bypass_connect: bool = False, **kwargs):
         """Executes a gspread operation with exponential backoff on failure."""
         delay = initial_delay
         for attempt in range(max_retries):
             try:
-                # If client or sheet is disconnected, try reconnecting unless it's the connect call itself
-                if not self.client and func != self._authenticate:
+                # If client or sheet is disconnected, try reconnecting unless bypassed
+                if not self.client and not bypass_connect:
                     self._connect()
                 return func(*args, **kwargs)
             except Exception as e:
@@ -72,7 +72,7 @@ class GoogleSheetClient(SheetClient):
             self.sheet = spreadsheet.get_worksheet(0)
             logger.info("Successfully connected to Google Sheet. Spreadsheet ID: %s", self.spreadsheet_id)
 
-        self._execute_with_retry(connect_ops)
+        self._execute_with_retry(connect_ops, bypass_connect=True)
 
     def _get_column_mappings(self, headers: List[str]) -> Dict[str, int]:
         """Dynamically maps header names to their 0-based column indices.

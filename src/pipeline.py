@@ -82,10 +82,10 @@ class Pipeline:
             product = self.sheet_client.get_pending_product()
         except Exception as e:
             logger.error("Pipeline: Failed to retrieve pending product from Sheet: %s", e)
-            notify_admin_email(
-                "Sheet Client Error",
-                f"Failed to fetch pending product from spreadsheet. Error: {e}"
-            )
+            # notify_admin_email(
+            #     "Sheet Client Error",
+            #     f"Failed to fetch pending product from spreadsheet. Error: {e}"
+            # )
             return False
 
         if not product:
@@ -170,21 +170,21 @@ class Pipeline:
                     "Pipeline: Transaction incomplete. Flags will remain N in Google Sheets for retry. Error: %s",
                     error_msg
                 )
-                if error_occurred:
-                    notify_admin_email(
-                        "Pipeline Processing Failure",
-                        f"Failed to process product '{product.name}' at row {product.row_index}.\n"
-                        f"Affiliate Link: {product.affiliate_link}\n"
-                        f"Errors: {error_msg}"
-                    )
+                # if error_occurred:
+                #     notify_admin_email(
+                #         "Pipeline Processing Failure",
+                #         f"Failed to process product '{product.name}' at row {product.row_index}.\n"
+                #         f"Affiliate Link: {product.affiliate_link}\n"
+                #         f"Errors: {error_msg}"
+                #     )
 
         except Exception as e:
             logger.error("Pipeline: Unexpected error: %s", e, exc_info=True)
             log_activity(product.name, product.affiliate_link, "FAILURE", f"Unexpected error: {e}")
-            notify_admin_email(
-                "Pipeline Unexpected Exception",
-                f"Unexpected exception processing product '{product.name}' (Row {product.row_index}):\n{e}"
-            )
+            # notify_admin_email(
+            #     "Pipeline Unexpected Exception",
+            #     f"Unexpected exception processing product '{product.name}' (Row {product.row_index}):\n{e}"
+            # )
         finally:
             # Always clean up downloaded / created image files
             self.image_gen.cleanup()

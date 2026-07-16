@@ -2,8 +2,9 @@ import os
 import logging
 import requests
 import re
+import time
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 from PIL import Image, ImageDraw, ImageFont
 from src.interfaces import ImageGenerator
 from src.models import Product
@@ -151,10 +152,9 @@ class PILImageGenerator(ImageGenerator):
         img = Image.new("RGB", (canvas_width, canvas_height), "#0F172A")
         draw = ImageDraw.Draw(img)
         
-        # 2. Draw modern abstract details (background card)
-        # Translucent main card for product image
-        card_x1, card_y1 = 140, 180
-        card_x2, card_y2 = 940, 780
+        # 2. Draw modern background card centered
+        card_x1, card_y1 = 160, 190
+        card_x2, card_y2 = 920, 950
         draw.rounded_rectangle(
             [(card_x1, card_y1), (card_x2, card_y2)],
             radius=24,
@@ -166,8 +166,8 @@ class PILImageGenerator(ImageGenerator):
         # 3. Load and Paste Product Image inside the card
         try:
             prod_img = Image.open(img_path)
-            # Resize product image to fit a 600x520 container, maintaining aspect ratio
-            max_w, max_h = 600, 520
+            # Resize product image to fit a 700x700 container, maintaining aspect ratio
+            max_w, max_h = 700, 700
             prod_img.thumbnail((max_w, max_h), Image.Resampling.LANCZOS)
             
             # Position centered inside the card
@@ -185,64 +185,33 @@ class PILImageGenerator(ImageGenerator):
             logger.error("Failed to load/draw product image inside creative: %s", e)
             
         # 4. Brand Header (GrabHive Logo & Text)
-        # Draw a beautiful brand badge top-left
         logo_x, logo_y = 60, 60
-        # Draw small yellow-orange hexagon representation
-        draw.polygon(
-            [(logo_x, logo_y+15), (logo_x+13, logo_y), (logo_x+37, logo_y), 
-             (logo_x+50, logo_y+15), (logo_x+37, logo_y+30), (logo_x+13, logo_y+30)],
-            fill="#F97316"
-        )
-        draw.text((logo_x + 65, logo_y - 12), "GrabHive", fill="#FFFFFF", font=self.font_logo)
-        draw.text((logo_x + 270, logo_y + 5), "D E A L S", fill="#94A3B8", font=self.font_small)
+        logo_file = Path("config/logo.png")
+        logo_pasted = False
         
-        # 5. Badges
-        # Orange/Red discount badge top-right
-        badge_text = "HOT DEAL"
-        bbox = draw.textbbox((0, 0), badge_text, font=self.font_bold)
-        badge_w = bbox[2] - bbox[0] + 30
-        badge_h = 50
-        badge_x1 = 1020 - badge_w
-        badge_y1 = 60
-        draw.rounded_rectangle(
-            [(badge_x1, badge_y1), (1020, badge_y1 + badge_h)],
-            radius=15,
-            fill="#EF4444"
-        )
-        draw.text((badge_x1 + 15, badge_y1 + 3), badge_text, fill="#FFFFFF", font=self.font_bold)
-        
-        # 6. Product Name Footer
-        # Wrap product name to fit width
-        cleaned_name = product.name
-        if len(cleaned_name) > 65:
-            cleaned_name = cleaned_name[:62] + "..."
-            
-        draw.text((60, 810), cleaned_name, fill="#FFFFFF", font=self.font_medium)
-        
-        # 7. Rating and Price details at bottom card
-        footer_card_y1 = 890
-        footer_card_y2 = 1020
-        draw.rounded_rectangle(
-            [(60, footer_card_y1), (1020, footer_card_y2)],
-            radius=16,
-            fill="#1E293B",
-            outline="#334155",
-            width=1
-        )
-        
-        # Price display
-        price_text = f"{product.price}" if product.price else "Best Deal"
-        draw.text((90, footer_card_y1 + 25), price_text, fill="#10B981", font=self.font_large) # green color
-        
-        # Provider badge inside bottom card
-        prov_text = f"Via {product.provider}" if product.provider else "Online"
-        draw.text((90, footer_card_y1 + 95), prov_text, fill="#94A3B8", font=self.font_small)
-        
-        # Rating stars
-        rating_text = f"⭐ {product.rating}" if product.rating else "⭐ 4.5"
-        bbox_r = draw.textbbox((0, 0), rating_text, font=self.font_bold)
-        rating_w = bbox_r[2] - bbox_r[0]
-        draw.text((1020 - rating_w - 40, footer_card_y1 + 40), rating_text, fill="#F59E0B", font=self.font_bold) # Amber color
+        if logo_file.exists():
+            try:
+                logo_img = Image.open(logo_file)
+                # Resize logo image to fit 50x50 container
+                logo_img.thumbnail((120, 120), Image.Resampling.LANCZOS)
+                # Align logo vertically with text
+                offset_logo_y = logo_y - 10
+                if logo_img.mode in ("RGBA", "LA"):
+                    img.paste(logo_img, (logo_x, offset_logo_y), logo_img)
+                else:
+                    img.paste(logo_img, (logo_x, offset_logo_y))
+                logo_pasted = True
+            except Exception as e:
+                logger.error("Failed to load custom logo file config/logo.png: %s. Using default.", e)
+
+        if not logo_pasted:
+            # Draw default yellow-orange hexagon representation
+            draw.polygon(
+                [(logo_x, logo_y+15), (logo_x+13, logo_y), (logo_x+37, logo_y), 
+                 (logo_x+50, logo_y+15), (logo_x+37, logo_y+30), (logo_x+13, logo_y+30)],
+                fill="#F97316"
+            )
+        # draw.text((logo_x + 135, logo_y + 70 - 12), "GrabHive", fill="#FFFFFF", font=self.font_logo)
         
         # Save creative
         img.save(output_path, "PNG")

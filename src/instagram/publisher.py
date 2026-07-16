@@ -1,52 +1,104 @@
+import os
 import logging
 import time
+from pathlib import Path
+from instagrapi import Client
+from instagrapi.exceptions import ClientError, LoginRequired, ClientLoginRequired
+from instagrapi.mixins.challenge import ChallengeChoice
 from src.interfaces import InstagramPublisher
 
 logger = logging.getLogger(__name__)
 
-class InstagramPublisherClient(InstagramPublisher):
-    """Client for publishing media to Instagram, implementing the InstagramPublisher interface.
+SESSION_FILE = Path("logs/instagram_session.json")
+
+def custom_challenge_code_handler(username: str, choice) -> str:
+    """Console-based challenge handler to resolve Instagram login checkpoints (JIRA-16/18)."""
+    print("\n" + "=" * 60)
+    if choice == ChallengeChoice.SMS:
+        print(f" INSTAGRAM SECURITY CHECKPOINT: SMS Code sent for user '{username}'")
+    elif choice == ChallengeChoice.EMAIL:
+        print(f" INSTAGRAM SECURITY CHECKPOINT: Email Code sent for user '{username}'")
+    else:
+        print(f" INSTAGRAM SECURITY CHECKPOINT: Code required (Choice: {choice})")
+    print("=" * 60)
     
-    Supports both simulated (mock) runs and concrete production implementations.
+    code = input("Please enter the 6-digit verification code: ").strip()
+    return code
+
+class InstagramPublisherClient(InstagramPublisher):
+    """Client for publishing media to Instagram using the instagrapi library.
+    
+    Supports simulated (mock) runs and full production publishing with session caching.
     """
 
-    def __init__(self, username: str, password: str, simulate: bool = True):
+    def __init__(self, username: str, password: str, session_id: Optional[str] = None, simulate: bool = True):
         self.username = username
         self.password = password
+        self.session_id = session_id
         self.simulate = simulate
         self.is_logged_in = False
+        self.cl = None
 
     def login(self) -> bool:
-        """Authenticate with Instagram."""
-        if not self.username or not self.password or self.simulate:
+        """Authenticate with Instagram using instagrapi and persist the session."""
+        if not self.username or (not self.password and not self.session_id) or self.simulate:
             logger.info("Instagram: Running in SIMULATION mode. Simulating login for user '%s'.", self.username)
             time.sleep(0.5)
             self.is_logged_in = True
             return True
-            
-        # For actual production setup (e.g. using instagrapi or Graph API requests)
-        # This acts as the placeholder/stub that can be expanded in Sprint 3.
+
         try:
-            logger.info("Instagram: Attempting actual login for user '%s'...", self.username)
-            # Example using instagrapi:
-            # from instagrapi import Client
-            # self.cl = Client()
-            # self.cl.login(self.username, self.password)
-            # self.is_logged_in = True
-            logger.info("Instagram: Actual login stub succeeded.")
+            self.cl = Client()
+            self.cl.challenge_code_handler = custom_challenge_code_handler
+            
+            # Check if session file exists
+            if SESSION_FILE.exists():
+                logger.info("Instagram: Loading saved session from %s...", SESSION_FILE)
+                try:
+                    self.cl.load_settings(SESSION_FILE)
+                    # Attempt a login call which will refresh session or authenticate if needed
+                    self.cl.login(self.username, self.password)
+                    logger.info("Instagram: Session restored successfully.")
+                    self.is_logged_in = True
+                    return True
+                except Exception as e:
+                    logger.warning("Instagram: Failed to restore session (%s). Proceeding with fresh login.", e)
+                    try:
+                        SESSION_FILE.unlink(missing_ok=True)
+                    except Exception:
+                        pass
+            
+            # Try login by session id first if provided
+            if self.session_id:
+                logger.info("Instagram: Attempting login using provided Session ID...")
+                try:
+                    self.cl.login_by_sessionid(self.session_id)
+                    SESSION_FILE.parent.mkdir(exist_ok=True, parents=True)
+                    self.cl.dump_settings(SESSION_FILE)
+                    logger.info("Instagram: Logged in via Session ID and saved settings to %s.", SESSION_FILE)
+                    self.is_logged_in = True
+                    return True
+                except Exception as e:
+                    logger.error("Instagram: Session ID login failed: %s. Falling back to credentials.", e)
+
+            # Fresh login via credentials
+            logger.info("Instagram: Performing fresh login for user '%s'...", self.username)
+            self.cl.login(self.username, self.password)
+            
+            # Save session for next time
+            SESSION_FILE.parent.mkdir(exist_ok=True, parents=True)
+            self.cl.dump_settings(SESSION_FILE)
+            logger.info("Instagram: Logged in and saved session settings to %s.", SESSION_FILE)
             self.is_logged_in = True
             return True
+            
         except Exception as e:
-            logger.error("Instagram: Actual login failed: %s", e)
+            logger.error("Instagram: Authentication failed: %s", e)
+            self.is_logged_in = False
             return False
 
     def publish(self, image_path: str, caption: str) -> bool:
-        """Publish post image with caption."""
-        if not self.is_logged_in:
-            if not self.login():
-                logger.error("Instagram: Publish aborted. Authentication failed.")
-                return False
-
+        """Publish post image with caption to Instagram feed."""
         if self.simulate:
             logger.info("Instagram: [SIMULATED POST SUCCESS]")
             logger.info("Instagram Image Path: %s", image_path)
@@ -54,14 +106,38 @@ class InstagramPublisherClient(InstagramPublisher):
             time.sleep(1.0)
             return True
 
-        # Production execution (Sprint 3)
-        # e.g., self.cl.photo_upload(image_path, caption)
-        try:
-            logger.info("Instagram: Uploading photo to feed. Path: %s", image_path)
-            # Simulating actual API request success
-            time.sleep(1.5)
-            logger.info("Instagram: Upload succeeded.")
-            return True
-        except Exception as e:
-            logger.error("Instagram: Photo upload failed: %s", e)
-            return False
+        if not self.is_logged_in:
+            if not self.login():
+                logger.error("Instagram: Publish aborted. Authentication failed.")
+                return False
+
+        logger.info("Instagram: Uploading photo to feed. Path: %s", image_path)
+        
+        # JIRA-18: Retry logic
+        max_attempts = 2
+        for attempt in range(max_attempts):
+            try:
+                # instagrapi expects a Path object or string path
+                media = self.cl.photo_upload(
+                    path=Path(image_path),
+                    caption=caption
+                )
+                logger.info("Instagram: Photo published successfully! Media ID: %s", media.id)
+                return True
+            except (LoginRequired, ClientLoginRequired) as e:
+                logger.warning("Instagram: Session expired or invalid on upload attempt %d/%d: %s", attempt + 1, max_attempts, e)
+                try:
+                    SESSION_FILE.unlink(missing_ok=True)
+                except Exception:
+                    pass
+                self.is_logged_in = False
+                if not self.login():
+                    logger.error("Instagram: Re-authentication failed during retry.")
+                    return False
+            except Exception as e:
+                logger.error("Instagram: Upload failed on attempt %d/%d. Error: %s", attempt + 1, max_attempts, e)
+                if attempt == max_attempts - 1:
+                    return False
+                time.sleep(2.0)
+                
+        return False
