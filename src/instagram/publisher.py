@@ -2,6 +2,7 @@ import os
 import logging
 import time
 from pathlib import Path
+from typing import Optional
 from instagrapi import Client
 from instagrapi.exceptions import ClientError, LoginRequired, ClientLoginRequired
 from instagrapi.mixins.challenge import ChallengeChoice
