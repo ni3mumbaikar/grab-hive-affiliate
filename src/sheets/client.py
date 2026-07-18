@@ -93,7 +93,8 @@ class GoogleSheetClient(SheetClient):
             "price": ["price", "cost"],
             "provider": ["provider", "store", "source"],
             "insta_flag": ["instaflag", "instagramflag", "insta"],
-            "whatsapp_flag": ["whatsappflag", "whatsapp", "waflag"]
+            "whatsapp_flag": ["whatsappflag", "whatsapp", "waflag"],
+            "image_url": ["imagelink", "imageurl", "image", "imglink", "imgurl"]
         }
         
         for key, aliases in expected.items():
@@ -104,8 +105,9 @@ class GoogleSheetClient(SheetClient):
                     found = True
                     break
             if not found:
-                # If not found, use a fallback default based on standard position
-                logger.warning("Header matching '%s' not found. Using fallback mapping.", key)
+                if key != "image_url":
+                    # If not found, use a fallback default based on standard position
+                    logger.warning("Header matching '%s' not found. Using fallback mapping.", key)
                 
         # Fill in fallbacks if any columns were not mapped
         fallbacks = {
@@ -148,6 +150,10 @@ class GoogleSheetClient(SheetClient):
             
             # If either flag is 'N' (or empty, which defaults to pending)
             if insta_val in ("N", "") or whatsapp_val in ("N", ""):
+                img_val = None
+                if "image_url" in mappings:
+                    img_val = row[mappings["image_url"]].strip()
+                    
                 product = Product(
                     row_index=idx,
                     name=row[mappings["name"]].strip(),
@@ -156,7 +162,8 @@ class GoogleSheetClient(SheetClient):
                     price=row[mappings["price"]].strip(),
                     provider=row[mappings["provider"]].strip(),
                     insta_flag="N" if insta_val in ("N", "") else "Y",
-                    whatsapp_flag="N" if whatsapp_val in ("N", "") else "Y"
+                    whatsapp_flag="N" if whatsapp_val in ("N", "") else "Y",
+                    image_url=img_val
                 )
                 logger.info("Found pending product at row %d: %s", idx, product.name)
                 return product

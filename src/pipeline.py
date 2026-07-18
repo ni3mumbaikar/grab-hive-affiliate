@@ -109,10 +109,14 @@ class Pipeline:
             if product.insta_flag == "N" and not progress.get("instagram_success"):
                 logger.info("Pipeline: Publishing to Instagram...")
                 try:
-                    raw_img = self.image_gen.download_image(product.affiliate_link)
-                    creative_img = self.image_gen.generate_creative(product, raw_img)
+                    if product.image_url and product.image_url.strip():
+                        logger.info("Pipeline: Using Image Link from Google Sheet: %s", product.image_url)
+                        raw_img = self.image_gen.download_image(product.image_url, is_direct=True)
+                    else:
+                        logger.info("Pipeline: No Image Link found in sheet. Scraping from affiliate link...")
+                        raw_img = self.image_gen.download_image(product.affiliate_link, is_direct=False)
                     
-                    success = self.insta_pub.publish(creative_img, caption)
+                    success = self.insta_pub.publish(raw_img, caption)
                     if success:
                         self.tracker.update_progress(link, "instagram_success", True)
                         logger.info("Pipeline: Instagram post successful.")

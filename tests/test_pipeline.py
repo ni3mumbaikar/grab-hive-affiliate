@@ -103,8 +103,12 @@ class MockSheetClient(SheetClient):
 class MockImageGenerator(ImageGenerator):
     def __init__(self):
         self.cleaned_up = False
+        self.last_downloaded_url = None
+        self.last_is_direct = None
 
-    def download_image(self, url: str) -> str:
+    def download_image(self, url: str, is_direct: bool = False) -> str:
+        self.last_downloaded_url = url
+        self.last_is_direct = is_direct
         return "temp/downloaded.jpg"
 
     def generate_creative(self, product: Product, img_path: str) -> str:
@@ -241,3 +245,31 @@ def test_pipeline_partial_failure_idempotent_retry(tmp_path):
     # Log must be empty now
     tracker_final = ProgressTracker(progress_file)
     assert tracker_final.get_progress("https://retry.link") == {"instagram_success": False, "whatsapp_success": False}
+
+
+def test_pipeline_with_image_url(tmp_path):
+    progress_file = tmp_path / "publish_progress.json"
+    
+    product = Product(
+        row_index=4,
+        name="Direct Image Item",
+        affiliate_link="https://direct.link",
+        rating="5.0",
+        price="$20",
+        provider="Mock",
+        insta_flag="N",
+        whatsapp_flag="N",
+        image_url="https://direct.link/image.jpg"
+    )
+    
+    sheet = MockSheetClient(product)
+    image_gen = MockImageGenerator()
+    insta = MockInstagramPublisher()
+    whatsapp = MockWhatsAppPublisher()
+    
+    pipeline = Pipeline(sheet, image_gen, insta, whatsapp, str(progress_file))
+    processed = pipeline.run_once()
+    
+    assert processed is True
+    assert image_gen.last_downloaded_url == "https://direct.link/image.jpg"
+    assert image_gen.last_is_direct is True

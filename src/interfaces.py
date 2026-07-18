@@ -31,11 +31,12 @@ class ImageGenerator(ABC):
     """Interface for downloading and generating social media creatives."""
 
     @abstractmethod
-    def download_image(self, url: str) -> str:
+    def download_image(self, url: str, is_direct: bool = False) -> str:
         """Download product image to a temporary file.
         
         Args:
             url (str): The URL of the product image.
+            is_direct (bool): Whether the URL is a direct link to the image file.
             
         Returns:
             str: Absolute path to the downloaded image.
