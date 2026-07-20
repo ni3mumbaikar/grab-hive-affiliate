@@ -94,7 +94,8 @@ class GoogleSheetClient(SheetClient):
             "provider": ["provider", "store", "source"],
             "insta_flag": ["instaflag", "instagramflag", "insta"],
             "whatsapp_flag": ["whatsappflag", "whatsapp", "waflag"],
-            "image_url": ["imagelink", "imageurl", "image", "imglink", "imgurl"]
+            "image_url": ["imagelink", "imageurl", "image", "imglink", "imgurl"],
+            "instagram_post_id": ["instagrampostid", "postid", "mediaid", "instapostid", "instagram_post_id"]
         }
         
         for key, aliases in expected.items():
@@ -105,7 +106,7 @@ class GoogleSheetClient(SheetClient):
                     found = True
                     break
             if not found:
-                if key != "image_url":
+                if key not in ("image_url", "instagram_post_id"):
                     # If not found, use a fallback default based on standard position
                     logger.warning("Header matching '%s' not found. Using fallback mapping.", key)
                 
@@ -148,11 +149,14 @@ class GoogleSheetClient(SheetClient):
             insta_val = row[mappings["insta_flag"]].strip().upper()
             whatsapp_val = row[mappings["whatsapp_flag"]].strip().upper()
             
-            # If either flag is 'N' (or empty, which defaults to pending)
             if insta_val in ("N", "") or whatsapp_val in ("N", ""):
                 img_val = None
-                if "image_url" in mappings:
+                if "image_url" in mappings and mappings["image_url"] < len(row):
                     img_val = row[mappings["image_url"]].strip()
+                    
+                post_id_val = None
+                if "instagram_post_id" in mappings and mappings["instagram_post_id"] < len(row):
+                    post_id_val = row[mappings["instagram_post_id"]].strip()
                     
                 product = Product(
                     row_index=idx,
@@ -163,7 +167,8 @@ class GoogleSheetClient(SheetClient):
                     provider=row[mappings["provider"]].strip(),
                     insta_flag="N" if insta_val in ("N", "") else "Y",
                     whatsapp_flag="N" if whatsapp_val in ("N", "") else "Y",
-                    image_url=img_val
+                    image_url=img_val,
+                    instagram_post_id=post_id_val
                 )
                 logger.info("Found pending product at row %d: %s", idx, product.name)
                 return product
@@ -192,4 +197,26 @@ class GoogleSheetClient(SheetClient):
             return self._execute_with_retry(update_flags)
         except Exception as e:
             logger.error("Failed to update flags in Google Sheet for row %d: %s", product.row_index, e)
+            return False
+
+    def update_instagram_post_id(self, row_index: int, post_id: str) -> bool:
+        """Write the Instagram post ID to the spreadsheet for the specified row."""
+        def do_update():
+            # Get headers to find indices
+            headers = self.sheet.row_values(1)
+            mappings = self._get_column_mappings(headers)
+            
+            if "instagram_post_id" in mappings:
+                col = mappings["instagram_post_id"] + 1
+                self.sheet.update_cell(row_index, col, post_id)
+                logger.info("Successfully updated row %d with Instagram post ID %s.", row_index, post_id)
+                return True
+            else:
+                logger.warning("Header matching 'instagram_post_id' not found in Google Sheet. Skipping post ID write.")
+                return False
+
+        try:
+            return self._execute_with_retry(do_update)
+        except Exception as e:
+            logger.error("Failed to update Instagram post ID in Google Sheet for row %d: %s", row_index, e)
             return False

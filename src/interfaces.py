@@ -26,6 +26,19 @@ class SheetClient(ABC):
         """
         pass
 
+    @abstractmethod
+    def update_instagram_post_id(self, row_index: int, post_id: str) -> bool:
+        """Write the Instagram post ID to the spreadsheet for the specified row.
+        
+        Args:
+            row_index (int): The 1-indexed row number.
+            post_id (str): The post/media ID to write.
+            
+        Returns:
+            bool: True if success, False otherwise.
+        """
+        pass
+
 
 class ImageGenerator(ABC):
     """Interface for downloading and generating social media creatives."""
@@ -75,7 +88,7 @@ class InstagramPublisher(ABC):
         pass
 
     @abstractmethod
-    def publish(self, image_path: str, caption: str) -> bool:
+    def publish(self, image_path: str, caption: str) -> Optional[str]:
         """Publish an image with a caption to Instagram.
         
         Args:
@@ -83,7 +96,7 @@ class InstagramPublisher(ABC):
             caption (str): The caption for the post.
             
         Returns:
-            bool: True if publishing succeeded, False otherwise.
+            Optional[str]: The post/media ID if publishing succeeded, None otherwise.
         """
         pass
 
