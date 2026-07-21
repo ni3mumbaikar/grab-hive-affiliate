@@ -6,4 +6,12 @@ services:
       - .env
     volumes:
       - ./logs:/app/logs
+    networks:
+      - default
+      - socrates_network
     restart: unless-stopped
+
+networks:
+  socrates_network:
+    external: true
+    name: botsocrates_default
