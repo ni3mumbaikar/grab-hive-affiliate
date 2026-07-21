@@ -36,13 +36,9 @@ def generate_instagram_caption(product: Product) -> str:
         "🔥 Deal Alert\n\n"
         f"{product.name}\n\n"
     )
-    if rating_str:
-        caption += f"{rating_str}\n\n"
-    if price_str:
-        caption += f"{price_str}\n\n"
         
     caption += (
-        "Buy Here 👇\n\n"
+        "Buy Here 👇\n"
         f"{product.affiliate_link}\n\n"
         f"#{provider_hashtag} #deal"
     )

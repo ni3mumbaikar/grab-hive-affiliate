@@ -127,6 +127,25 @@ class Pipeline:
                         
                         # Try to write post ID to sheet immediately
                         self.sheet_client.update_instagram_post_id(product.row_index, post_id)
+                        
+                        # Trigger WhatsApp broadcast immediately on successful Instagram post
+                        if product.whatsapp_flag == "N" and not self.tracker.get_progress(link).get("whatsapp_success"):
+                            logger.info("Pipeline: Instantly triggering WhatsApp broadcast since Instagram posting succeeded...")
+                            try:
+                                success = self.whatsapp_pub.send_message(caption)
+                                if success:
+                                    self.tracker.update_progress(link, "whatsapp_success", True)
+                                    self.sheet_client.update_whatsapp_flag(product.row_index, "Y")
+                                    product.whatsapp_flag = "Y"
+                                    logger.info("Pipeline: Instant WhatsApp message broadcast successful.")
+                                else:
+                                    error_occurred = True
+                                    error_msg += "Instant WhatsApp broadcast returned False. "
+                                    logger.error("Pipeline: Instant WhatsApp message broadcast failed.")
+                            except Exception as e:
+                                error_occurred = True
+                                error_msg += f"Instant WhatsApp processing error: {e}. "
+                                logger.error("Pipeline: Instant WhatsApp broadcast encountered error: %s", e)
                     else:
                         error_occurred = True
                         error_msg += "Instagram publish returned None or empty. "
@@ -141,12 +160,16 @@ class Pipeline:
                     self.tracker.update_progress(link, "instagram_success", True)
 
             # --- WhatsApp Posting ---
+            # Re-fetch progress to see if it was updated during the Instagram posting block
+            progress = self.tracker.get_progress(link)
             if product.whatsapp_flag == "N" and not progress.get("whatsapp_success"):
                 logger.info("Pipeline: Publishing to WhatsApp...")
                 try:
-                    success = self.whatsapp_pub.send_message(whatsapp_text)
+                    success = self.whatsapp_pub.send_message(caption)
                     if success:
                         self.tracker.update_progress(link, "whatsapp_success", True)
+                        self.sheet_client.update_whatsapp_flag(product.row_index, "Y")
+                        product.whatsapp_flag = "Y"
                         logger.info("Pipeline: WhatsApp message broadcast successful.")
                     else:
                         error_occurred = True
@@ -160,6 +183,7 @@ class Pipeline:
                 logger.info("Pipeline: WhatsApp broadcast skipped (already marked Y or success in local state).")
                 if product.whatsapp_flag == "Y" and not progress.get("whatsapp_success"):
                     self.tracker.update_progress(link, "whatsapp_success", True)
+
 
             # --- Check Transaction Finalization ---
             final_progress = self.tracker.get_progress(link)

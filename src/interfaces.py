@@ -39,6 +39,19 @@ class SheetClient(ABC):
         """
         pass
 
+    @abstractmethod
+    def update_whatsapp_flag(self, row_index: int, flag: str = "Y") -> bool:
+        """Write the WhatsApp status flag to the spreadsheet for the specified row.
+        
+        Args:
+            row_index (int): The 1-indexed row number.
+            flag (str): The status value (typically 'Y' or 'N').
+            
+        Returns:
+            bool: True if success, False otherwise.
+        """
+        pass
+
 
 class ImageGenerator(ABC):
     """Interface for downloading and generating social media creatives."""

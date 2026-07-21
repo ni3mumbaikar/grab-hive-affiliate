@@ -9,7 +9,7 @@ from filelock import FileLock, Timeout
 # Ensure project root is in python path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-from config.settings import validate_config, GOOGLE_SERVICE_ACCOUNT_JSON, SPREADSHEET_ID, INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD, INSTAGRAM_SESSION_ID, WHATSAPP_TOKEN, WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_GROUP_ID, CRON_INTERVAL_HOURS
+from config.settings import validate_config, GOOGLE_SERVICE_ACCOUNT_JSON, SPREADSHEET_ID, INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD, INSTAGRAM_SESSION_ID, WHATSAPP_TOKEN, WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_GROUP_ID, WHATSAPP_SIMULATE, CRON_INTERVAL_HOURS
 from src.sheets.client import GoogleSheetClient
 from src.image.generator import PILImageGenerator
 from src.instagram.publisher import InstagramPublisherClient
@@ -41,7 +41,7 @@ def run_pipeline():
     
     # We run in simulated mode if default credentials or explicit SIMULATE env/settings is set
     simulate_insta = not (INSTAGRAM_USERNAME and (INSTAGRAM_PASSWORD or INSTAGRAM_SESSION_ID) and INSTAGRAM_USERNAME != "your_instagram_username")
-    simulate_whatsapp = not (WHATSAPP_TOKEN and WHATSAPP_GROUP_ID and WHATSAPP_TOKEN != "your_whatsapp_cloud_api_token")
+    simulate_whatsapp = WHATSAPP_SIMULATE
     
     insta_pub = InstagramPublisherClient(
         username=INSTAGRAM_USERNAME or "mock_user",

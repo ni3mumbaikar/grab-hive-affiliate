@@ -27,8 +27,6 @@ def test_generate_instagram_caption():
     
     assert "Deal Alert" in caption
     assert "Samsung Galaxy Buds" in caption
-    assert "⭐ 4.6 Rating" in caption
-    assert "💰 ₹3499" in caption
     assert "https://amazon.in/buds" in caption
     assert "#amazon" in caption
     assert "#deal" in caption
@@ -101,6 +99,10 @@ class MockSheetClient(SheetClient):
 
     def update_instagram_post_id(self, row_index: int, post_id: str):
         self.product.instagram_post_id = post_id
+        return True
+
+    def update_whatsapp_flag(self, row_index: int, flag: str = "Y"):
+        self.product.whatsapp_flag = flag
         return True
 
 
