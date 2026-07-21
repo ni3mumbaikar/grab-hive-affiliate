@@ -12,3 +12,4 @@ class Product:
     insta_flag: str = "N"
     whatsapp_flag: str = "N"
     image_url: Optional[str] = None  # Scraped or manually specified image URL
+    instagram_post_id: Optional[str] = None

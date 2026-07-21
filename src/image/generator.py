@@ -87,12 +87,12 @@ class PILImageGenerator(ImageGenerator):
             
         return None
 
-    def download_image(self, url: str) -> str:
+    def download_image(self, url: str, is_direct: bool = False) -> str:
         """Download product image from a URL or scrape from affiliate link if URL is not direct."""
         local_path = self.temp_dir / f"downloaded_{int(time.time())}.jpg"
         
         # Check if the url parameter is actually a product affiliate link we need to scrape first
-        is_direct_image = any(ext in url.lower() for ext in [".jpg", ".jpeg", ".png", ".webp"])
+        is_direct_image = is_direct or any(ext in url.lower() for ext in [".jpg", ".jpeg", ".png", ".webp"])
         
         if not is_direct_image:
             scraped_url = self._scrape_image_url_from_affiliate_link(url)

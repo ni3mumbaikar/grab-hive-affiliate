@@ -38,7 +38,7 @@ class ProgressTracker:
     def get_progress(self, link: str) -> Dict[str, Any]:
         return self.state.get(link, {"instagram_success": False, "whatsapp_success": False})
 
-    def update_progress(self, link: str, key: str, value: bool):
+    def update_progress(self, link: str, key: str, value: Any):
         if link not in self.state:
             self.state[link] = {
                 "instagram_success": False,
@@ -100,6 +100,8 @@ class Pipeline:
         
         try:
             progress = self.tracker.get_progress(link)
+            if progress.get("instagram_post_id") and not product.instagram_post_id:
+                product.instagram_post_id = progress.get("instagram_post_id")
             
             # Form captions
             caption = generate_instagram_caption(product)
@@ -109,16 +111,25 @@ class Pipeline:
             if product.insta_flag == "N" and not progress.get("instagram_success"):
                 logger.info("Pipeline: Publishing to Instagram...")
                 try:
-                    raw_img = self.image_gen.download_image(product.affiliate_link)
-                    creative_img = self.image_gen.generate_creative(product, raw_img)
+                    if product.image_url and product.image_url.strip():
+                        logger.info("Pipeline: Using Image Link from Google Sheet: %s", product.image_url)
+                        raw_img = self.image_gen.download_image(product.image_url, is_direct=True)
+                    else:
+                        logger.info("Pipeline: No Image Link found in sheet. Scraping from affiliate link...")
+                        raw_img = self.image_gen.download_image(product.affiliate_link, is_direct=False)
                     
-                    success = self.insta_pub.publish(creative_img, caption)
-                    if success:
+                    post_id = self.insta_pub.publish(raw_img, caption)
+                    if post_id:
                         self.tracker.update_progress(link, "instagram_success", True)
-                        logger.info("Pipeline: Instagram post successful.")
+                        self.tracker.update_progress(link, "instagram_post_id", post_id)
+                        product.instagram_post_id = post_id
+                        logger.info("Pipeline: Instagram post successful. Post ID: %s", post_id)
+                        
+                        # Try to write post ID to sheet immediately
+                        self.sheet_client.update_instagram_post_id(product.row_index, post_id)
                     else:
                         error_occurred = True
-                        error_msg += "Instagram publish returned False. "
+                        error_msg += "Instagram publish returned None or empty. "
                         logger.error("Pipeline: Instagram post failed.")
                 except Exception as e:
                     error_occurred = True

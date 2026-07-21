@@ -99,12 +99,20 @@ class MockSheetClient(SheetClient):
         self.product.whatsapp_flag = "Y"
         return True
 
+    def update_instagram_post_id(self, row_index: int, post_id: str):
+        self.product.instagram_post_id = post_id
+        return True
+
 
 class MockImageGenerator(ImageGenerator):
     def __init__(self):
         self.cleaned_up = False
+        self.last_downloaded_url = None
+        self.last_is_direct = None
 
-    def download_image(self, url: str) -> str:
+    def download_image(self, url: str, is_direct: bool = False) -> str:
+        self.last_downloaded_url = url
+        self.last_is_direct = is_direct
         return "temp/downloaded.jpg"
 
     def generate_creative(self, product: Product, img_path: str) -> str:
@@ -124,9 +132,9 @@ class MockInstagramPublisher(InstagramPublisher):
 
     def publish(self, image_path: str, caption: str):
         if self.should_fail:
-            return False
+            return None
         self.published = True
-        return True
+        return "17983683849042983_mock"
 
 
 class MockWhatsAppPublisher(WhatsAppPublisher):
@@ -172,6 +180,7 @@ def test_pipeline_success_run(tmp_path):
     # Assert publications succeeded
     assert insta.published is True
     assert whatsapp.message_sent is True
+    assert product.instagram_post_id == "17983683849042983_mock"
     
     # Assert transaction completed and Sheet flags updated to Y
     assert sheet.marked_completed is True
@@ -215,11 +224,13 @@ def test_pipeline_partial_failure_idempotent_retry(tmp_path):
     assert whatsapp.message_sent is False
     assert sheet.marked_completed is False  # Transaction not complete
     assert product.insta_flag == "N"         # Left as N in sheet
+    assert product.instagram_post_id == "17983683849042983_mock"
     
     # Check progress tracker recorded Instagram success but WhatsApp failure
     tracker = ProgressTracker(progress_file)
     progress_state = tracker.get_progress("https://retry.link")
     assert progress_state["instagram_success"] is True
+    assert progress_state["instagram_post_id"] == "17983683849042983_mock"
     assert progress_state["whatsapp_success"] is False
     
     # Step 2: Next scheduler run (WhatsApp succeeds this time)
@@ -237,7 +248,69 @@ def test_pipeline_partial_failure_idempotent_retry(tmp_path):
     assert sheet.marked_completed is True
     assert product.insta_flag == "Y"
     assert product.whatsapp_flag == "Y"
+    assert product.instagram_post_id == "17983683849042983_mock"
     
     # Log must be empty now
     tracker_final = ProgressTracker(progress_file)
     assert tracker_final.get_progress("https://retry.link") == {"instagram_success": False, "whatsapp_success": False}
+
+
+def test_pipeline_with_image_url(tmp_path):
+    progress_file = tmp_path / "publish_progress.json"
+    
+    product = Product(
+        row_index=4,
+        name="Direct Image Item",
+        affiliate_link="https://direct.link",
+        rating="5.0",
+        price="$20",
+        provider="Mock",
+        insta_flag="N",
+        whatsapp_flag="N",
+        image_url="https://direct.link/image.jpg"
+    )
+    
+    sheet = MockSheetClient(product)
+    image_gen = MockImageGenerator()
+    insta = MockInstagramPublisher()
+    whatsapp = MockWhatsAppPublisher()
+    
+    pipeline = Pipeline(sheet, image_gen, insta, whatsapp, str(progress_file))
+    processed = pipeline.run_once()
+    
+    assert processed is True
+    assert image_gen.last_downloaded_url == "https://direct.link/image.jpg"
+    assert image_gen.last_is_direct is True
+
+
+def test_google_sheet_column_mappings():
+    from unittest.mock import MagicMock
+    from src.sheets.client import GoogleSheetClient
+    
+    # Mock self._connect in __init__
+    original_connect = GoogleSheetClient._connect
+    GoogleSheetClient._connect = MagicMock()
+    try:
+        client = GoogleSheetClient("dummy_credentials", "dummy_spreadsheet_id")
+        
+        # Test headers including standard variations of Instagram_post_id
+        headers1 = ["Product Name", "Link", "Rating", "Cost", "Store", "Instagram", "WhatsApp", "Image Link", "Instagram_post_id"]
+        mappings = client._get_column_mappings(headers1)
+        assert mappings["instagram_post_id"] == 8
+        
+        headers2 = ["productname", "url", "rate", "price", "source", "instaflag", "waflag", "imagelink", "postid"]
+        mappings2 = client._get_column_mappings(headers2)
+        assert mappings2["instagram_post_id"] == 8
+        
+        headers3 = ["productname", "url", "rate", "price", "source", "instaflag", "waflag", "imagelink", "mediaid"]
+        mappings3 = client._get_column_mappings(headers3)
+        assert mappings3["instagram_post_id"] == 8
+
+        # Test case where column is missing (should not raise exception, mapping should not contain key)
+        headers_missing = ["Product Name", "Link", "Rating", "Cost", "Store", "Instagram", "WhatsApp", "Image Link"]
+        mappings_missing = client._get_column_mappings(headers_missing)
+        assert "instagram_post_id" not in mappings_missing
+
+    finally:
+        GoogleSheetClient._connect = original_connect
+

@@ -2,6 +2,7 @@ import os
 import logging
 import time
 from pathlib import Path
+from typing import Optional
 from instagrapi import Client
 from instagrapi.exceptions import ClientError, LoginRequired, ClientLoginRequired
 from instagrapi.mixins.challenge import ChallengeChoice
@@ -96,20 +97,19 @@ class InstagramPublisherClient(InstagramPublisher):
             logger.error("Instagram: Authentication failed: %s", e)
             self.is_logged_in = False
             return False
-
-    def publish(self, image_path: str, caption: str) -> bool:
+    def publish(self, image_path: str, caption: str) -> Optional[str]:
         """Publish post image with caption to Instagram feed."""
         if self.simulate:
             logger.info("Instagram: [SIMULATED POST SUCCESS]")
             logger.info("Instagram Image Path: %s", image_path)
             logger.info("Instagram Caption:\n%s\n", caption)
             time.sleep(1.0)
-            return True
+            return "17983683849042983_simulated"
 
         if not self.is_logged_in:
             if not self.login():
                 logger.error("Instagram: Publish aborted. Authentication failed.")
-                return False
+                return None
 
         logger.info("Instagram: Uploading photo to feed. Path: %s", image_path)
         
@@ -122,8 +122,22 @@ class InstagramPublisherClient(InstagramPublisher):
                     path=Path(image_path),
                     caption=caption
                 )
-                logger.info("Instagram: Photo published successfully! Media ID: %s", media.id)
-                return True
+                media_id = str(media.id)
+                logger.info("Instagram: Photo published successfully! Media ID: %s", media_id)
+                
+                # Retrieve the Graph API FBID (Facebook ID) of the media
+                try:
+                    info = self.cl.private_request(f"media/{media.pk}/info/")
+                    if 'items' in info and len(info['items']) > 0:
+                        fbid = info['items'][0].get('fbid')
+                        if fbid:
+                            fbid_str = str(fbid)
+                            logger.info("Instagram: Successfully retrieved Graph API FBID: %s", fbid_str)
+                            return fbid_str
+                except Exception as e:
+                    logger.warning("Instagram: Failed to retrieve Graph API FBID: %s. Falling back to media.id.", e)
+                
+                return media_id
             except (LoginRequired, ClientLoginRequired) as e:
                 logger.warning("Instagram: Session expired or invalid on upload attempt %d/%d: %s", attempt + 1, max_attempts, e)
                 try:
@@ -133,11 +147,11 @@ class InstagramPublisherClient(InstagramPublisher):
                 self.is_logged_in = False
                 if not self.login():
                     logger.error("Instagram: Re-authentication failed during retry.")
-                    return False
+                    return None
             except Exception as e:
                 logger.error("Instagram: Upload failed on attempt %d/%d. Error: %s", attempt + 1, max_attempts, e)
                 if attempt == max_attempts - 1:
-                    return False
+                    return None
                 time.sleep(2.0)
                 
-        return False
+        return None
