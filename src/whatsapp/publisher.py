@@ -8,21 +8,22 @@ logger = logging.getLogger(__name__)
 class WhatsAppPublisherClient(WhatsAppPublisher):
     """Client for broadcasting messages to a WhatsApp group/chat using a local WhatsApp service."""
 
-    def __init__(self, token: str, phone_number_id: str, group_id: str, simulate: bool = False):
+    def __init__(self, token: str, phone_number_id: str, group_id: str, api_url: str = None, simulate: bool = False):
         self.token = token
         self.phone_number_id = phone_number_id
         self.group_id = group_id
+        self.api_url = api_url or "http://localhost:3000/send-message"
         self.simulate = simulate
 
     def send_message(self, text: str) -> bool:
-        """Send message with caption to local WhatsApp service on port 3000."""
+        """Send message with caption to local WhatsApp service."""
         if self.simulate:
             logger.info("WhatsApp: Running in SIMULATION mode. Broadcasting message to local WhatsApp service mockup.")
             logger.info("WhatsApp Message Text:\n%s\n", text)
             time.sleep(0.5)
             return True
 
-        url = "http://localhost:3000/send-message"
+        url = self.api_url
         payload = {"text": text}
         try:
             logger.info("WhatsApp: Sending message to local WhatsApp service at %s...", url)
