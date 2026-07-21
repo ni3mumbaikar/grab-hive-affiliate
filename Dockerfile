@@ -27,5 +27,5 @@ COPY src/ ./src/
 RUN mkdir -p logs temp
 VOLUME ["/app/logs"]
 
-# Command to run the application in daemon scheduler loop mode
-ENTRYPOINT ["python", "src/scheduler.py", "--daemon"]
+# Command to run the application in daemon scheduler loop mode by default
+CMD ["python", "src/scheduler.py", "--daemon"]
