@@ -16,8 +16,9 @@ def test_login_session_restored_successfully(mock_client_class, tmp_path):
     with patch("src.instagram.publisher.SESSION_FILE", session_file):
         publisher = InstagramPublisherClient(username="test_user", password="test_password", simulate=False)
         
-        # When get_timeline_feed succeeds, session is valid
-        mock_client.get_timeline_feed.return_value = {}
+        # Mock user_id and user_info_v1
+        mock_client.user_id = "123456"
+        mock_client.user_info_v1.return_value = {}
         
         logged_in = publisher.login()
         
@@ -25,7 +26,7 @@ def test_login_session_restored_successfully(mock_client_class, tmp_path):
         assert publisher.is_logged_in is True
         mock_client.load_settings.assert_called_once_with(session_file)
         mock_client.login.assert_not_called()
-        mock_client.get_timeline_feed.assert_called_once()
+        mock_client.user_info_v1.assert_called_once_with("123456")
         # Should not delete the session file
         assert session_file.exists()
 
@@ -41,14 +42,16 @@ def test_login_session_expired_falls_back_to_fresh_login(mock_client_class, tmp_
     with patch("src.instagram.publisher.SESSION_FILE", session_file):
         publisher = InstagramPublisherClient(username="test_user", password="test_password", simulate=False)
         
-        # When get_timeline_feed fails with LoginRequired
-        mock_client.get_timeline_feed.side_effect = LoginRequired("login required")
+        # Mock user_id and user_info_v1 failure
+        mock_client.user_id = "123456"
+        mock_client.user_info_v1.side_effect = LoginRequired("login required")
         
         logged_in = publisher.login()
         
         assert logged_in is True
         assert publisher.is_logged_in is True
         mock_client.load_settings.assert_called_once_with(session_file)
+        mock_client.user_info_v1.assert_called_once_with("123456")
         # Should have tried to log in once for fresh login
         assert mock_client.login.call_count == 1
         # The session file should have been deleted and recreated

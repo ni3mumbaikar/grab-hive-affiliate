@@ -58,9 +58,9 @@ class InstagramPublisherClient(InstagramPublisher):
                 try:
                     self.cl.load_settings(SESSION_FILE)
                     
-                    # Verify session validity by making a lightweight request (e.g. get_timeline_feed)
+                    # Verify session validity by making a lightweight request (e.g. user_info_v1)
                     logger.info("Instagram: Verifying saved session validity...")
-                    self.cl.get_timeline_feed()
+                    self.cl.user_info_v1(self.cl.user_id)
                     
                     logger.info("Instagram: Session restored successfully and verified.")
                     self.is_logged_in = True
