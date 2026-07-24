@@ -131,17 +131,24 @@ class InstagramPublisherClient(InstagramPublisher):
                 logger.info("Instagram: Photo published successfully! Media ID: %s", media_id)
                 
                 # Retrieve the Graph API FBID (Facebook ID) of the media
-                try:
-                    info = self.cl.private_request(f"media/{media.pk}/info/")
-                    if 'items' in info and len(info['items']) > 0:
-                        fbid = info['items'][0].get('fbid')
-                        if fbid:
-                            fbid_str = str(fbid)
-                            logger.info("Instagram: Successfully retrieved Graph API FBID: %s", fbid_str)
-                            return fbid_str
-                except Exception as e:
-                    logger.warning("Instagram: Failed to retrieve Graph API FBID: %s. Falling back to media.id.", e)
+                fbid_str = None
+                for info_attempt in range(3):
+                    try:
+                        info = self.cl.private_request(f"media/{media.pk}/info/")
+                        if 'items' in info and len(info['items']) > 0:
+                            fbid = info['items'][0].get('fbid')
+                            if fbid:
+                                fbid_str = str(fbid)
+                                logger.info("Instagram: Successfully retrieved Graph API FBID: %s", fbid_str)
+                                break
+                    except Exception as e:
+                        logger.warning("Instagram: FBID retrieval attempt %d failed: %s", info_attempt + 1, e)
+                    time.sleep(2.0)
                 
+                if fbid_str:
+                    return fbid_str
+                
+                logger.warning("Instagram: Failed to retrieve Graph API FBID after retries. Falling back to media.id: %s", media_id)
                 return media_id
             except Exception as e:
                 # Check if session is expired/invalid (raised explicitly as LoginRequired/ClientLoginRequired, or message contains login_required)
