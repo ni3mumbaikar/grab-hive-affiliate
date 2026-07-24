@@ -57,8 +57,6 @@ class InstagramPublisherClient(InstagramPublisher):
                 logger.info("Instagram: Loading saved session from %s...", SESSION_FILE)
                 try:
                     self.cl.load_settings(SESSION_FILE)
-                    # Attempt a login call which will refresh session or authenticate if needed
-                    self.cl.login(self.username, self.password)
                     
                     # Verify session validity by making a lightweight request (e.g. get_timeline_feed)
                     logger.info("Instagram: Verifying saved session validity...")

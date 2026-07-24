@@ -24,7 +24,7 @@ def test_login_session_restored_successfully(mock_client_class, tmp_path):
         assert logged_in is True
         assert publisher.is_logged_in is True
         mock_client.load_settings.assert_called_once_with(session_file)
-        mock_client.login.assert_called_once_with("test_user", "test_password")
+        mock_client.login.assert_not_called()
         mock_client.get_timeline_feed.assert_called_once()
         # Should not delete the session file
         assert session_file.exists()
@@ -49,8 +49,8 @@ def test_login_session_expired_falls_back_to_fresh_login(mock_client_class, tmp_
         assert logged_in is True
         assert publisher.is_logged_in is True
         mock_client.load_settings.assert_called_once_with(session_file)
-        # Should have tried to log in twice: once for loading, once for fresh login
-        assert mock_client.login.call_count == 2
+        # Should have tried to log in once for fresh login
+        assert mock_client.login.call_count == 1
         # The session file should have been deleted and recreated
         mock_client.dump_settings.assert_called_once_with(session_file)
 
