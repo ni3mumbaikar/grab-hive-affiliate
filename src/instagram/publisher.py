@@ -59,7 +59,12 @@ class InstagramPublisherClient(InstagramPublisher):
                     self.cl.load_settings(SESSION_FILE)
                     # Attempt a login call which will refresh session or authenticate if needed
                     self.cl.login(self.username, self.password)
-                    logger.info("Instagram: Session restored successfully.")
+                    
+                    # Verify session validity by making a lightweight request (e.g. get_timeline_feed)
+                    logger.info("Instagram: Verifying saved session validity...")
+                    self.cl.get_timeline_feed()
+                    
+                    logger.info("Instagram: Session restored successfully and verified.")
                     self.is_logged_in = True
                     return True
                 except Exception as e:
@@ -138,20 +143,23 @@ class InstagramPublisherClient(InstagramPublisher):
                     logger.warning("Instagram: Failed to retrieve Graph API FBID: %s. Falling back to media.id.", e)
                 
                 return media_id
-            except (LoginRequired, ClientLoginRequired) as e:
-                logger.warning("Instagram: Session expired or invalid on upload attempt %d/%d: %s", attempt + 1, max_attempts, e)
-                try:
-                    SESSION_FILE.unlink(missing_ok=True)
-                except Exception:
-                    pass
-                self.is_logged_in = False
-                if not self.login():
-                    logger.error("Instagram: Re-authentication failed during retry.")
-                    return None
             except Exception as e:
-                logger.error("Instagram: Upload failed on attempt %d/%d. Error: %s", attempt + 1, max_attempts, e)
-                if attempt == max_attempts - 1:
-                    return None
-                time.sleep(2.0)
+                # Check if session is expired/invalid (raised explicitly as LoginRequired/ClientLoginRequired, or message contains login_required)
+                is_login_req = isinstance(e, (LoginRequired, ClientLoginRequired)) or "login_required" in str(e).lower()
+                if is_login_req:
+                    logger.warning("Instagram: Session expired or invalid on upload attempt %d/%d: %s", attempt + 1, max_attempts, e)
+                    try:
+                        SESSION_FILE.unlink(missing_ok=True)
+                    except Exception:
+                        pass
+                    self.is_logged_in = False
+                    if not self.login():
+                        logger.error("Instagram: Re-authentication failed during retry.")
+                        return None
+                else:
+                    logger.error("Instagram: Upload failed on attempt %d/%d. Error: %s", attempt + 1, max_attempts, e)
+                    if attempt == max_attempts - 1:
+                        return None
+                    time.sleep(2.0)
                 
         return None
