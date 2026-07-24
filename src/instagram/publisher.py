@@ -76,9 +76,11 @@ class InstagramPublisherClient(InstagramPublisher):
             
             # Try login by session id first if provided
             if self.session_id:
+                import urllib.parse
+                decoded_session_id = urllib.parse.unquote(self.session_id)
                 logger.info("Instagram: Attempting login using provided Session ID...")
                 try:
-                    self.cl.login_by_sessionid(self.session_id)
+                    self.cl.login_by_sessionid(decoded_session_id)
                     SESSION_FILE.parent.mkdir(exist_ok=True, parents=True)
                     self.cl.dump_settings(SESSION_FILE)
                     logger.info("Instagram: Logged in via Session ID and saved settings to %s.", SESSION_FILE)
