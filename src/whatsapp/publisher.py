@@ -8,10 +8,7 @@ logger = logging.getLogger(__name__)
 class WhatsAppPublisherClient(WhatsAppPublisher):
     """Client for broadcasting messages to a WhatsApp group/chat using a local WhatsApp service."""
 
-    def __init__(self, token: str, phone_number_id: str, group_id: str, api_url: str = None, simulate: bool = False):
-        self.token = token
-        self.phone_number_id = phone_number_id
-        self.group_id = group_id
+    def __init__(self, api_url: str = None, simulate: bool = False):
         self.api_url = api_url or "http://localhost:3000/send-message"
         self.simulate = simulate
 

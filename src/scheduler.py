@@ -9,7 +9,7 @@ from filelock import FileLock, Timeout
 # Ensure project root is in python path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-from config.settings import validate_config, GOOGLE_SERVICE_ACCOUNT_JSON, SPREADSHEET_ID, INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD, INSTAGRAM_SESSION_ID, WHATSAPP_TOKEN, WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_GROUP_ID, WHATSAPP_API_URL, WHATSAPP_SIMULATE, CRON_INTERVAL_HOURS
+from config.settings import validate_config, GOOGLE_SERVICE_ACCOUNT_JSON, SPREADSHEET_ID, INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD, INSTAGRAM_SESSION_ID, WHATSAPP_API_URL, WHATSAPP_SIMULATE, CRON_INTERVAL_HOURS
 from src.sheets.client import GoogleSheetClient
 from src.image.generator import PILImageGenerator
 from src.instagram.publisher import InstagramPublisherClient
@@ -51,9 +51,6 @@ def run_pipeline():
     )
     
     whatsapp_pub = WhatsAppPublisherClient(
-        token=WHATSAPP_TOKEN or "mock_token",
-        phone_number_id=WHATSAPP_PHONE_NUMBER_ID or "mock_phone_id",
-        group_id=WHATSAPP_GROUP_ID or "mock_group",
         api_url=WHATSAPP_API_URL,
         simulate=simulate_whatsapp
     )
