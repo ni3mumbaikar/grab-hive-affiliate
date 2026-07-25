@@ -88,3 +88,42 @@ def test_publish_retry_on_login_required(mock_client_class, tmp_path):
         assert mock_client.photo_upload.call_count == 2
         # Verify it triggered a session deletion and login flow
         assert not session_file.exists()
+
+
+@patch("src.instagram.publisher.Client")
+def test_publish_retrieves_fbid_from_user_feed(mock_client_class, tmp_path):
+    mock_client = MagicMock()
+    mock_client_class.return_value = mock_client
+    
+    session_file = tmp_path / "instagram_session.json"
+    session_file.write_text("dummy session content")
+    
+    with patch("src.instagram.publisher.SESSION_FILE", session_file):
+        publisher = InstagramPublisherClient(username="test_user", password="test_password", simulate=False)
+        publisher.cl = mock_client
+        publisher.is_logged_in = True
+        
+        mock_client.user_id = "43026174174"
+        mock_media = MagicMock()
+        mock_media.id = "12345_media"
+        mock_media.pk = "12345"
+        mock_client.photo_upload.return_value = mock_media
+        
+        # Mock private_request:
+        # First call is to feed/user/43026174174/ which returns the feed with the post and fbid
+        mock_client.private_request.return_value = {
+            "items": [
+                {
+                    "pk": "12345",
+                    "id": "12345_media",
+                    "fbid": 987654321
+                }
+            ]
+        }
+        
+        media_id = publisher.publish("dummy_path.jpg", "caption")
+        
+        assert media_id == "987654321"
+        mock_client.photo_upload.assert_called_once()
+        # Verify the endpoint requested was indeed the user feed
+        mock_client.private_request.assert_called_once_with("feed/user/43026174174/")

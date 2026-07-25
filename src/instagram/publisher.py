@@ -134,12 +134,30 @@ class InstagramPublisherClient(InstagramPublisher):
                 fbid_str = None
                 for info_attempt in range(3):
                     try:
+                        # Attempt 1: Try retrieving FBID from the user's feed (much less rate-limited than media/info)
+                        try:
+                            if getattr(self.cl, "user_id", None):
+                                feed_info = self.cl.private_request(f"feed/user/{self.cl.user_id}/")
+                                if 'items' in feed_info:
+                                    for item in feed_info['items']:
+                                        if str(item.get('pk')) == str(media.pk) or str(item.get('id')) == str(media.id):
+                                            fbid = item.get('fbid')
+                                            if fbid:
+                                                fbid_str = str(fbid)
+                                                logger.info("Instagram: Successfully retrieved Graph API FBID from user feed: %s", fbid_str)
+                                                break
+                                    if fbid_str:
+                                        break
+                        except Exception as feed_err:
+                            logger.warning("Instagram: FBID retrieval from user feed failed: %s. Falling back to direct media/info request.", feed_err)
+
+                        # Attempt 2: Direct media info request as fallback
                         info = self.cl.private_request(f"media/{media.pk}/info/")
                         if 'items' in info and len(info['items']) > 0:
                             fbid = info['items'][0].get('fbid')
                             if fbid:
                                 fbid_str = str(fbid)
-                                logger.info("Instagram: Successfully retrieved Graph API FBID: %s", fbid_str)
+                                logger.info("Instagram: Successfully retrieved Graph API FBID from media/info: %s", fbid_str)
                                 break
                     except Exception as e:
                         logger.warning("Instagram: FBID retrieval attempt %d failed: %s", info_attempt + 1, e)
