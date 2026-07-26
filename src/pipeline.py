@@ -118,7 +118,7 @@ class Pipeline:
                         logger.info("Pipeline: No Image Link found in sheet. Scraping from affiliate link...")
                         raw_img = self.image_gen.download_image(product.affiliate_link, is_direct=False)
                     
-                    post_id = self.insta_pub.publish(raw_img, caption)
+                    post_id = self.insta_pub.publish(raw_img, caption, image_url=product.image_url)
                     if post_id:
                         self.tracker.update_progress(link, "instagram_success", True)
                         self.tracker.update_progress(link, "instagram_post_id", post_id)
@@ -127,6 +127,10 @@ class Pipeline:
                         
                         # Try to write post ID to sheet immediately
                         self.sheet_client.update_instagram_post_id(product.row_index, post_id)
+                        
+                        # Mark Instagram flag as Y immediately in sheet
+                        self.sheet_client.update_instagram_flag(product.row_index, "Y")
+                        product.insta_flag = "Y"
                         
                         # Trigger WhatsApp broadcast immediately on successful Instagram post
                         if product.whatsapp_flag == "N" and not self.tracker.get_progress(link).get("whatsapp_success"):

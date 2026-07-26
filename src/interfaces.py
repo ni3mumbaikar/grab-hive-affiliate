@@ -40,6 +40,19 @@ class SheetClient(ABC):
         pass
 
     @abstractmethod
+    def update_instagram_flag(self, row_index: int, flag: str = "Y") -> bool:
+        """Write the Instagram status flag to the spreadsheet for the specified row.
+        
+        Args:
+            row_index (int): The 1-indexed row number.
+            flag (str): The status value (typically 'Y' or 'N').
+            
+        Returns:
+            bool: True if success, False otherwise.
+        """
+        pass
+
+    @abstractmethod
     def update_whatsapp_flag(self, row_index: int, flag: str = "Y") -> bool:
         """Write the WhatsApp status flag to the spreadsheet for the specified row.
         
@@ -101,12 +114,13 @@ class InstagramPublisher(ABC):
         pass
 
     @abstractmethod
-    def publish(self, image_path: str, caption: str) -> Optional[str]:
+    def publish(self, image_path: str, caption: str, image_url: Optional[str] = None) -> Optional[str]:
         """Publish an image with a caption to Instagram.
         
         Args:
             image_path (str): Path to the image creative.
             caption (str): The caption for the post.
+            image_url (Optional[str]): Optional public URL for Graph API upload.
             
         Returns:
             Optional[str]: The post/media ID if publishing succeeded, None otherwise.

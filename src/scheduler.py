@@ -9,10 +9,15 @@ from filelock import FileLock, Timeout
 # Ensure project root is in python path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-from config.settings import validate_config, GOOGLE_SERVICE_ACCOUNT_JSON, SPREADSHEET_ID, INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD, INSTAGRAM_SESSION_ID, WHATSAPP_API_URL, WHATSAPP_SIMULATE, CRON_INTERVAL_HOURS
+from config.settings import (
+    validate_config, GOOGLE_SERVICE_ACCOUNT_JSON, SPREADSHEET_ID, 
+    INSTAGRAM_USE_OFFICIAL_API, INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD, INSTAGRAM_SESSION_ID,
+    INSTAGRAM_BUSINESS_ACCOUNT_ID, INSTAGRAM_ACCESS_TOKEN, INSTAGRAM_GRAPH_API_VERSION,
+    WHATSAPP_API_URL, WHATSAPP_SIMULATE, CRON_INTERVAL_HOURS
+)
 from src.sheets.client import GoogleSheetClient
 from src.image.generator import PILImageGenerator
-from src.instagram.publisher import InstagramPublisherClient
+from src.instagram import InstagramPublisherClient, InstagramGraphPublisherClient
 from src.whatsapp.publisher import WhatsAppPublisherClient
 from src.pipeline import Pipeline
 
@@ -39,17 +44,27 @@ def run_pipeline():
     )
     image_gen = PILImageGenerator()
     
-    # We run in simulated mode if default credentials or explicit SIMULATE env/settings is set
-    simulate_insta = not (INSTAGRAM_USERNAME and (INSTAGRAM_PASSWORD or INSTAGRAM_SESSION_ID) and INSTAGRAM_USERNAME != "your_instagram_username")
+    # Select Instagram Publisher based on INSTAGRAM_USE_OFFICIAL_API flag
+    if INSTAGRAM_USE_OFFICIAL_API:
+        simulate_insta = not (INSTAGRAM_BUSINESS_ACCOUNT_ID and INSTAGRAM_ACCESS_TOKEN and INSTAGRAM_BUSINESS_ACCOUNT_ID != "your_instagram_business_account_id")
+        logger.info("Instagram: Using Official Graph API implementation (Simulate=%s)", simulate_insta)
+        insta_pub = InstagramGraphPublisherClient(
+            business_account_id=INSTAGRAM_BUSINESS_ACCOUNT_ID or "mock_account_id",
+            access_token=INSTAGRAM_ACCESS_TOKEN or "mock_token",
+            api_version=INSTAGRAM_GRAPH_API_VERSION,
+            simulate=simulate_insta
+        )
+    else:
+        simulate_insta = not (INSTAGRAM_USERNAME and (INSTAGRAM_PASSWORD or INSTAGRAM_SESSION_ID) and INSTAGRAM_USERNAME != "your_instagram_username")
+        logger.info("Instagram: Using Unofficial instagrapi implementation (Simulate=%s)", simulate_insta)
+        insta_pub = InstagramPublisherClient(
+            username=INSTAGRAM_USERNAME or "mock_user",
+            password=INSTAGRAM_PASSWORD or "mock_pass",
+            session_id=INSTAGRAM_SESSION_ID,
+            simulate=simulate_insta
+        )
+    
     simulate_whatsapp = WHATSAPP_SIMULATE
-    
-    insta_pub = InstagramPublisherClient(
-        username=INSTAGRAM_USERNAME or "mock_user",
-        password=INSTAGRAM_PASSWORD or "mock_pass",
-        session_id=INSTAGRAM_SESSION_ID,
-        simulate=simulate_insta
-    )
-    
     whatsapp_pub = WhatsAppPublisherClient(
         api_url=WHATSAPP_API_URL,
         simulate=simulate_whatsapp

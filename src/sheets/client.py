@@ -221,6 +221,28 @@ class GoogleSheetClient(SheetClient):
             logger.error("Failed to update Instagram post ID in Google Sheet for row %d: %s", row_index, e)
             return False
 
+    def update_instagram_flag(self, row_index: int, flag: str = "Y") -> bool:
+        """Write the Instagram status flag to the spreadsheet for the specified row."""
+        def do_update():
+            # Get headers to find indices
+            headers = self.sheet.row_values(1)
+            mappings = self._get_column_mappings(headers)
+            
+            if "insta_flag" in mappings:
+                col = mappings["insta_flag"] + 1
+                self.sheet.update_cell(row_index, col, flag)
+                logger.info("Successfully updated row %d Instagram flag to %s.", row_index, flag)
+                return True
+            else:
+                logger.warning("Header matching 'insta_flag' not found in Google Sheet. Skipping Instagram flag write.")
+                return False
+
+        try:
+            return self._execute_with_retry(do_update)
+        except Exception as e:
+            logger.error("Failed to update Instagram flag in Google Sheet for row %d: %s", row_index, e)
+            return False
+
     def update_whatsapp_flag(self, row_index: int, flag: str = "Y") -> bool:
         """Write the WhatsApp status flag to the spreadsheet for the specified row."""
         def do_update():

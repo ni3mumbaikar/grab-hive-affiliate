@@ -102,7 +102,7 @@ class InstagramPublisherClient(InstagramPublisher):
             logger.error("Instagram: Authentication failed: %s", e)
             self.is_logged_in = False
             return False
-    def publish(self, image_path: str, caption: str) -> Optional[str]:
+    def publish(self, image_path: str, caption: str, image_url: Optional[str] = None) -> Optional[str]:
         """Publish post image with caption to Instagram feed."""
         if self.simulate:
             logger.info("Instagram: [SIMULATED POST SUCCESS]")

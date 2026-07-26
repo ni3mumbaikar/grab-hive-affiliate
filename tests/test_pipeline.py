@@ -101,6 +101,10 @@ class MockSheetClient(SheetClient):
         self.product.instagram_post_id = post_id
         return True
 
+    def update_instagram_flag(self, row_index: int, flag: str = "Y"):
+        self.product.insta_flag = flag
+        return True
+
     def update_whatsapp_flag(self, row_index: int, flag: str = "Y"):
         self.product.whatsapp_flag = flag
         return True
@@ -132,7 +136,7 @@ class MockInstagramPublisher(InstagramPublisher):
     def login(self):
         return True
 
-    def publish(self, image_path: str, caption: str):
+    def publish(self, image_path: str, caption: str, image_url: Optional[str] = None):
         if self.should_fail:
             return None
         self.published = True
@@ -225,7 +229,7 @@ def test_pipeline_partial_failure_idempotent_retry(tmp_path):
     assert insta.published is True
     assert whatsapp.message_sent is False
     assert sheet.marked_completed is False  # Transaction not complete
-    assert product.insta_flag == "N"         # Left as N in sheet
+    assert product.insta_flag == "Y"         # Marked Y in sheet immediately
     assert product.instagram_post_id == "17983683849042983_mock"
     
     # Check progress tracker recorded Instagram success but WhatsApp failure
