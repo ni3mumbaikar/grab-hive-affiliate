@@ -2,9 +2,10 @@ import pytest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 from instagrapi.exceptions import LoginRequired, PhotoNotUpload
-from src.instagram.publisher import InstagramPublisherClient
+from src.publishers.instagram.publisher import InstagramPublisherClient
 
-@patch("src.instagram.publisher.Client")
+@patch("src.publishers.instagram.publisher.Client")
+
 def test_login_session_restored_successfully(mock_client_class, tmp_path):
     mock_client = MagicMock()
     mock_client_class.return_value = mock_client
@@ -13,7 +14,7 @@ def test_login_session_restored_successfully(mock_client_class, tmp_path):
     session_file = tmp_path / "instagram_session.json"
     session_file.write_text("dummy session content")
     
-    with patch("src.instagram.publisher.SESSION_FILE", session_file):
+    with patch("src.publishers.instagram.publisher.SESSION_FILE", session_file):
         publisher = InstagramPublisherClient(username="test_user", password="test_password", simulate=False)
         
         # Mock user_id and user_info_v1
@@ -30,7 +31,7 @@ def test_login_session_restored_successfully(mock_client_class, tmp_path):
         # Should not delete the session file
         assert session_file.exists()
 
-@patch("src.instagram.publisher.Client")
+@patch("src.publishers.instagram.publisher.Client")
 def test_login_session_expired_falls_back_to_fresh_login(mock_client_class, tmp_path):
     mock_client = MagicMock()
     mock_client_class.return_value = mock_client
@@ -39,7 +40,7 @@ def test_login_session_expired_falls_back_to_fresh_login(mock_client_class, tmp_
     session_file = tmp_path / "instagram_session.json"
     session_file.write_text("dummy session content")
     
-    with patch("src.instagram.publisher.SESSION_FILE", session_file):
+    with patch("src.publishers.instagram.publisher.SESSION_FILE", session_file):
         publisher = InstagramPublisherClient(username="test_user", password="test_password", simulate=False)
         
         # Mock user_id and user_info_v1 failure
@@ -57,7 +58,7 @@ def test_login_session_expired_falls_back_to_fresh_login(mock_client_class, tmp_
         # The session file should have been deleted and recreated
         mock_client.dump_settings.assert_called_once_with(session_file)
 
-@patch("src.instagram.publisher.Client")
+@patch("src.publishers.instagram.publisher.Client")
 def test_publish_retry_on_login_required(mock_client_class, tmp_path):
     mock_client = MagicMock()
     mock_client_class.return_value = mock_client
@@ -65,7 +66,7 @@ def test_publish_retry_on_login_required(mock_client_class, tmp_path):
     session_file = tmp_path / "instagram_session.json"
     session_file.write_text("dummy session content")
     
-    with patch("src.instagram.publisher.SESSION_FILE", session_file):
+    with patch("src.publishers.instagram.publisher.SESSION_FILE", session_file):
         publisher = InstagramPublisherClient(username="test_user", password="test_password", simulate=False)
         publisher.cl = mock_client
         publisher.is_logged_in = True
@@ -90,7 +91,7 @@ def test_publish_retry_on_login_required(mock_client_class, tmp_path):
         assert not session_file.exists()
 
 
-@patch("src.instagram.publisher.Client")
+@patch("src.publishers.instagram.publisher.Client")
 def test_publish_retrieves_fbid_from_user_feed(mock_client_class, tmp_path):
     mock_client = MagicMock()
     mock_client_class.return_value = mock_client
@@ -98,7 +99,7 @@ def test_publish_retrieves_fbid_from_user_feed(mock_client_class, tmp_path):
     session_file = tmp_path / "instagram_session.json"
     session_file.write_text("dummy session content")
     
-    with patch("src.instagram.publisher.SESSION_FILE", session_file):
+    with patch("src.publishers.instagram.publisher.SESSION_FILE", session_file):
         publisher = InstagramPublisherClient(username="test_user", password="test_password", simulate=False)
         publisher.cl = mock_client
         publisher.is_logged_in = True

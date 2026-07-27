@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import MagicMock, patch
-from src.instagram.official_publisher import InstagramGraphPublisherClient
+from src.publishers.instagram.official_publisher import InstagramGraphPublisherClient
 from src.pipeline import Pipeline
 from src.models import Product
 
@@ -13,7 +13,7 @@ def test_login_simulated():
     assert client.login() is True
     assert client.is_logged_in is True
 
-@patch("src.instagram.official_publisher.requests.get")
+@patch("src.publishers.instagram.official_publisher.requests.get")
 def test_login_success(mock_get):
     mock_resp = MagicMock()
     mock_resp.status_code = 200
@@ -29,7 +29,7 @@ def test_login_success(mock_get):
     assert client.is_logged_in is True
     mock_get.assert_called_once()
 
-@patch("src.instagram.official_publisher.requests.get")
+@patch("src.publishers.instagram.official_publisher.requests.get")
 def test_login_failure_warns_but_proceeds(mock_get):
     mock_resp = MagicMock()
     mock_resp.status_code = 400
@@ -63,8 +63,8 @@ def test_publish_simulated():
     res = client.publish("https://example.com/image.jpg", "Test Caption")
     assert res == "17983683849042983_graph_simulated"
 
-@patch("src.instagram.official_publisher.requests.post")
-@patch("src.instagram.official_publisher.requests.get")
+@patch("src.publishers.instagram.official_publisher.requests.post")
+@patch("src.publishers.instagram.official_publisher.requests.get")
 def test_publish_live_flow_success(mock_get, mock_post):
     # Mock login get response
     mock_login_resp = MagicMock()
@@ -102,8 +102,8 @@ def test_publish_live_flow_success(mock_get, mock_post):
     assert mock_post.call_count == 2
     assert mock_get.call_count == 2
 
-@patch("src.instagram.official_publisher.requests.post")
-@patch("src.instagram.official_publisher.requests.get")
+@patch("src.publishers.instagram.official_publisher.requests.post")
+@patch("src.publishers.instagram.official_publisher.requests.get")
 def test_publish_rate_limit_fallback(mock_get, mock_post):
     mock_login_resp = MagicMock()
     mock_login_resp.status_code = 200

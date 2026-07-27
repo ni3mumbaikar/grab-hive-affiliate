@@ -2,6 +2,22 @@ services:
   bot:
     build: .
     container_name: grabhive-bot
+    command: python src/scheduler.py --daemon
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - default
+      - socrates_network
+    restart: unless-stopped
+
+  deal-scraper:
+    build: .
+    container_name: grabhive-deal-scraper
+    command: python src/scraper_daemon.py --daemon
     extra_hosts:
       - "host.docker.internal:host-gateway"
     env_file:

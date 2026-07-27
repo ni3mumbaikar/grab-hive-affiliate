@@ -2,11 +2,12 @@ import json
 import os
 from pathlib import Path
 import pytest
-from src.models import Product
-from src.content.caption import generate_instagram_caption
-from src.content.whatsapp_msg import generate_whatsapp_message
+from src.core.models import Product
+from src.publishers.content.caption import generate_instagram_caption
+from src.publishers.content.whatsapp_msg import generate_whatsapp_message
 from src.pipeline import ProgressTracker, Pipeline
-from src.interfaces import SheetClient, ImageGenerator, InstagramPublisher, WhatsAppPublisher
+from src.core.interfaces import SheetClient, ImageGenerator, InstagramPublisher, WhatsAppPublisher
+
 
 # ---------------------------------------------------------
 # Test Content Generators (JIRA-31)
@@ -108,6 +109,13 @@ class MockSheetClient(SheetClient):
     def update_whatsapp_flag(self, row_index: int, flag: str = "Y"):
         self.product.whatsapp_flag = flag
         return True
+
+    def append_products(self, products):
+        return len(products)
+
+    def get_existing_links_or_names(self):
+        return set()
+
 
 
 class MockImageGenerator(ImageGenerator):

@@ -3,11 +3,12 @@ import logging
 import time
 from pathlib import Path
 from typing import Dict, Any, Optional
-from src.interfaces import SheetClient, ImageGenerator, InstagramPublisher, WhatsAppPublisher
-from src.models import Product
-from src.content.caption import generate_instagram_caption
-from src.content.whatsapp_msg import generate_whatsapp_message
-from src.monitoring import log_activity, notify_admin_email
+from src.core.interfaces import SheetClient, ImageGenerator, InstagramPublisher, WhatsAppPublisher
+from src.core.models import Product
+from src.publishers.content.caption import generate_instagram_caption
+from src.publishers.content.whatsapp_msg import generate_whatsapp_message
+from src.core.monitoring import log_activity, notify_admin_email
+
 
 logger = logging.getLogger(__name__)
 

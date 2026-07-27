@@ -1,15 +1,4 @@
-from dataclasses import dataclass
-from typing import Optional
+"""Re-export models for backward compatibility."""
+from src.core.models import Product, ScrapedDeal
 
-@dataclass
-class Product:
-    row_index: int  # The 1-indexed row number in the Google Sheet
-    name: str
-    affiliate_link: str
-    rating: str
-    price: str
-    provider: str
-    insta_flag: str = "N"
-    whatsapp_flag: str = "N"
-    image_url: Optional[str] = None  # Scraped or manually specified image URL
-    instagram_post_id: Optional[str] = None
+__all__ = ["Product", "ScrapedDeal"]

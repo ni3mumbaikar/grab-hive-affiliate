@@ -2,11 +2,11 @@ import os
 import json
 import logging
 import time
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Set
 import gspread
 from google.oauth2.service_account import Credentials
-from src.interfaces import SheetClient
-from src.models import Product
+from src.core.interfaces import SheetClient
+from src.core.models import Product
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,6 @@ class GoogleSheetClient(SheetClient):
         delay = initial_delay
         for attempt in range(max_retries):
             try:
-                # If client or sheet is disconnected, try reconnecting unless bypassed
                 if not self.client and not bypass_connect:
                     self._connect()
                 return func(*args, **kwargs)
@@ -48,7 +47,6 @@ class GoogleSheetClient(SheetClient):
             "https://www.googleapis.com/auth/drive"
         ]
         
-        # Check if credentials_info is a file path
         if os.path.exists(self.credentials_info):
             logger.info("Authenticating with Google using service account file: %s", self.credentials_info)
             creds = Credentials.from_service_account_file(self.credentials_info, scopes=scopes)
@@ -75,14 +73,7 @@ class GoogleSheetClient(SheetClient):
         self._execute_with_retry(connect_ops, bypass_connect=True)
 
     def _get_column_mappings(self, headers: List[str]) -> Dict[str, int]:
-        """Dynamically maps header names to their 0-based column indices.
-        
-        Args:
-            headers: List of string headers from row 1 of the sheet.
-            
-        Returns:
-            Dict mapping key fields to 0-based indices.
-        """
+        """Dynamically maps header names to their 0-based column indices."""
         mappings = {}
         normalized_headers = [h.lower().strip().replace("_", "").replace(" ", "") for h in headers]
         
@@ -107,10 +98,8 @@ class GoogleSheetClient(SheetClient):
                     break
             if not found:
                 if key not in ("image_url", "instagram_post_id"):
-                    # If not found, use a fallback default based on standard position
                     logger.warning("Header matching '%s' not found. Using fallback mapping.", key)
                 
-        # Fill in fallbacks if any columns were not mapped
         fallbacks = {
             "name": 0,
             "affiliate_link": 1,
@@ -139,9 +128,7 @@ class GoogleSheetClient(SheetClient):
         headers = rows[0]
         mappings = self._get_column_mappings(headers)
         
-        # Scan starting from row index 1 (which is sheet row 2)
         for idx, row in enumerate(rows[1:], start=2):
-            # Pad row if it has fewer elements than mapped
             max_idx = max(mappings.values())
             if len(row) <= max_idx:
                 row = row + [""] * (max_idx - len(row) + 1)
@@ -179,15 +166,12 @@ class GoogleSheetClient(SheetClient):
     def mark_product_completed(self, product: Product) -> bool:
         """Mark both Insta flag and Whatsapp flag as 'Y' in the sheet."""
         def update_flags():
-            # Get headers to find indices
             headers = self.sheet.row_values(1)
             mappings = self._get_column_mappings(headers)
             
-            # gspread updates use 1-based columns
             insta_col = mappings["insta_flag"] + 1
             whatsapp_col = mappings["whatsapp_flag"] + 1
             
-            # Update both columns in the specific row
             self.sheet.update_cell(product.row_index, insta_col, "Y")
             self.sheet.update_cell(product.row_index, whatsapp_col, "Y")
             logger.info("Successfully updated row %d to Y for Insta and Whatsapp flags.", product.row_index)
@@ -202,7 +186,6 @@ class GoogleSheetClient(SheetClient):
     def update_instagram_post_id(self, row_index: int, post_id: str) -> bool:
         """Write the Instagram post ID to the spreadsheet for the specified row."""
         def do_update():
-            # Get headers to find indices
             headers = self.sheet.row_values(1)
             mappings = self._get_column_mappings(headers)
             
@@ -224,7 +207,6 @@ class GoogleSheetClient(SheetClient):
     def update_instagram_flag(self, row_index: int, flag: str = "Y") -> bool:
         """Write the Instagram status flag to the spreadsheet for the specified row."""
         def do_update():
-            # Get headers to find indices
             headers = self.sheet.row_values(1)
             mappings = self._get_column_mappings(headers)
             
@@ -246,7 +228,6 @@ class GoogleSheetClient(SheetClient):
     def update_whatsapp_flag(self, row_index: int, flag: str = "Y") -> bool:
         """Write the WhatsApp status flag to the spreadsheet for the specified row."""
         def do_update():
-            # Get headers to find indices
             headers = self.sheet.row_values(1)
             mappings = self._get_column_mappings(headers)
             
@@ -265,3 +246,70 @@ class GoogleSheetClient(SheetClient):
             logger.error("Failed to update WhatsApp flag in Google Sheet for row %d: %s", row_index, e)
             return False
 
+    def append_products(self, products: List[Product]) -> int:
+        """Batch append new products to the spreadsheet."""
+        if not products:
+            logger.info("No products provided to append.")
+            return 0
+
+        def do_append():
+            headers = self.sheet.row_values(1)
+            mappings = self._get_column_mappings(headers)
+            max_col = max(mappings.values()) + 1
+
+            rows_to_append = []
+            for p in products:
+                row = [""] * max_col
+                row[mappings["name"]] = p.name
+                row[mappings["affiliate_link"]] = p.affiliate_link
+                row[mappings["rating"]] = str(p.rating)
+                row[mappings["price"]] = str(p.price)
+                row[mappings["provider"]] = p.provider
+                row[mappings["insta_flag"]] = p.insta_flag
+                row[mappings["whatsapp_flag"]] = p.whatsapp_flag
+                if "image_url" in mappings and p.image_url:
+                    row[mappings["image_url"]] = p.image_url
+                if "instagram_post_id" in mappings and p.instagram_post_id:
+                    row[mappings["instagram_post_id"]] = p.instagram_post_id
+                rows_to_append.append(row)
+
+            self.sheet.append_rows(rows_to_append)
+            logger.info("Successfully appended %d products to Google Sheet.", len(products))
+            return len(products)
+
+        try:
+            return self._execute_with_retry(do_append)
+        except Exception as e:
+            logger.error("Failed to append products to Google Sheet: %s", e)
+            return 0
+
+    def get_existing_links_or_names(self) -> Set[str]:
+        """Fetch normalized set of existing titles and affiliate links for deduplication."""
+        def fetch_all():
+            return self.sheet.get_all_values()
+
+        existing = set()
+        try:
+            rows = self._execute_with_retry(fetch_all)
+            if not rows or len(rows) < 2:
+                return existing
+
+            headers = rows[0]
+            mappings = self._get_column_mappings(headers)
+
+            for row in rows[1:]:
+                if len(row) > mappings["name"] and row[mappings["name"]].strip():
+                    existing.add(row[mappings["name"]].strip().lower())
+                if len(row) > mappings["affiliate_link"] and row[mappings["affiliate_link"]].strip():
+                    link = row[mappings["affiliate_link"]].strip().lower()
+                    existing.add(link)
+                    if "/dp/" in link:
+                        parts = link.split("/dp/")
+                        if len(parts) > 1:
+                            asin = parts[1].split("/")[0].split("?")[0]
+                            if asin:
+                                existing.add(asin.lower())
+            return existing
+        except Exception as e:
+            logger.error("Failed to fetch existing links/names for deduplication: %s", e)
+            return existing

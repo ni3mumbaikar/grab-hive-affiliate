@@ -1,11 +1,21 @@
 import os
+import sys
 import logging
 from logging.handlers import RotatingFileHandler
+
 from pathlib import Path
 from dotenv import load_dotenv
 
+# Ensure UTF-8 output encoding for Windows terminals
+if sys.platform == "win32":
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8")
+
 # Base Directory of the Project
 BASE_DIR = Path(__file__).resolve().parent.parent
+
 
 # Load environment variables from .env file
 load_dotenv(dotenv_path=BASE_DIR / ".env")
@@ -33,6 +43,14 @@ INSTAGRAM_GRAPH_API_VERSION = os.getenv("INSTAGRAM_GRAPH_API_VERSION", "v19.0")
 WHATSAPP_API_URL = os.getenv("WHATSAPP_API_URL", "http://localhost:3000/send-message")
 WHATSAPP_SIMULATE = os.getenv("WHATSAPP_SIMULATE", "False").lower() in ("true", "1", "yes")
 
+# Amazon Scraper Configuration
+AMAZON_AFFILIATE_TAG = os.getenv("AMAZON_AFFILIATE_TAG", "grabhive-21")
+AMAZON_BASE_URL = os.getenv("AMAZON_BASE_URL", "https://www.amazon.in")
+SCRAPER_INTERVAL_HOURS = float(os.getenv("SCRAPER_INTERVAL_HOURS", "12.0"))
+MIN_DISCOUNT_PERCENT = float(os.getenv("MIN_DISCOUNT_PERCENT", "30.0"))
+MIN_RATING = float(os.getenv("MIN_RATING", "4.3"))
+MIN_REVIEWS = int(os.getenv("MIN_REVIEWS", "500"))
+MAX_DEALS_PER_RUN = int(os.getenv("MAX_DEALS_PER_RUN", "50"))
 
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL")
 SMTP_SERVER = os.getenv("SMTP_SERVER")

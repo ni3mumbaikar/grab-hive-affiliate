@@ -16,10 +16,11 @@ from config.settings import (
     WHATSAPP_API_URL, WHATSAPP_SIMULATE, CRON_INTERVAL_HOURS
 )
 from src.sheets.client import GoogleSheetClient
-from src.image.generator import PILImageGenerator
-from src.instagram import InstagramPublisherClient, InstagramGraphPublisherClient
-from src.whatsapp.publisher import WhatsAppPublisherClient
+from src.publishers.image.generator import PILImageGenerator
+from src.publishers.instagram import InstagramPublisherClient, InstagramGraphPublisherClient
+from src.publishers.whatsapp import WhatsAppPublisherClient
 from src.pipeline import Pipeline
+
 
 logger = logging.getLogger("scheduler")
 
