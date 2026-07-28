@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 def main():
     parser = argparse.ArgumentParser(
-        description="GrabHive Amazon.in Deals Auto-Populator Service"
+        description="GrabHive Multi-Platform Deals Auto-Populator Service (Amazon.in & Ajio.com)"
     )
     parser.add_argument(
         "--daemon",

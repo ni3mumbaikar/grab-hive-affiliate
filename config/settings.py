@@ -43,9 +43,12 @@ INSTAGRAM_GRAPH_API_VERSION = os.getenv("INSTAGRAM_GRAPH_API_VERSION", "v19.0")
 WHATSAPP_API_URL = os.getenv("WHATSAPP_API_URL", "http://localhost:3000/send-message")
 WHATSAPP_SIMULATE = os.getenv("WHATSAPP_SIMULATE", "False").lower() in ("true", "1", "yes")
 
-# Amazon Scraper Configuration
+# Amazon & Ajio Scraper Configuration
 AMAZON_AFFILIATE_TAG = os.getenv("AMAZON_AFFILIATE_TAG", "grabhive-21")
 AMAZON_BASE_URL = os.getenv("AMAZON_BASE_URL", "https://www.amazon.in")
+AJIO_AFFILIATE_TAG = os.getenv("AJIO_AFFILIATE_TAG", "grabhive")
+AJIO_BASE_URL = os.getenv("AJIO_BASE_URL", "https://www.ajio.com")
+AJIO_AFFILIATE_TEMPLATE = os.getenv("AJIO_AFFILIATE_TEMPLATE", "https://www.ajio.com/p/{code}?tag={tag}")
 SCRAPER_INTERVAL_HOURS = float(os.getenv("SCRAPER_INTERVAL_HOURS", "12.0"))
 MIN_DISCOUNT_PERCENT = float(os.getenv("MIN_DISCOUNT_PERCENT", "30.0"))
 MIN_RATING = float(os.getenv("MIN_RATING", "4.3"))

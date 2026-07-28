@@ -15,6 +15,7 @@ from config.settings import (
 from src.core.interfaces import SheetClient
 from src.sheets.client import GoogleSheetClient
 from src.scraper.amazon import AmazonScraper
+from src.scraper.ajio import AjioScraper
 from src.scraper.processor import DealProcessor
 from src.core.monitoring import log_activity, notify_admin_email
 
@@ -68,12 +69,14 @@ class SingleInstanceLock:
 
 
 class ScraperDaemon:
-    """Scraper Daemon orchestrating Amazon India deal retrieval, filtering, ranking & Google Sheet insertion."""
+    """Scraper Daemon orchestrating multi-platform (Amazon India & Ajio.com) deal retrieval, filtering, ranking & Google Sheet insertion."""
 
     def __init__(
         self,
         sheet_client: Optional[SheetClient] = None,
-        scraper: Optional[AmazonScraper] = None,
+        amazon_scraper: Optional[AmazonScraper] = None,
+        ajio_scraper: Optional[AjioScraper] = None,
+        scraper: Optional[AmazonScraper] = None,  # Backward compatibility parameter
         processor: Optional[DealProcessor] = None,
     ):
         if sheet_client is None:
@@ -81,37 +84,52 @@ class ScraperDaemon:
             sheet_client = GoogleSheetClient(GOOGLE_SERVICE_ACCOUNT_JSON, SPREADSHEET_ID)
 
         self.sheet_client = sheet_client
-        self.scraper = scraper or AmazonScraper()
+        self.amazon_scraper = amazon_scraper or scraper or AmazonScraper()
+        self.ajio_scraper = ajio_scraper or AjioScraper()
         self.processor = processor or DealProcessor()
 
     def run_once(self) -> int:
-        """Executes a single cycle of scraping, filtering, and appending to Google Sheet."""
-        logger.info("--- Starting Amazon.in Deal Auto-Populator Execution Cycle ---")
+        """Executes a single cycle of multi-platform (Amazon & Ajio) scraping, filtering, and appending to Google Sheet."""
+        logger.info("--- Starting Multi-Platform Deal Auto-Populator Execution Cycle ---")
         try:
             logger.info("Fetching existing product entries from Google Sheet...")
             existing_entries = self.sheet_client.get_existing_links_or_names()
 
-            raw_deals = self.scraper.scrape_todays_deals()
-            logger.info("Scraped %d raw deal items from Amazon India.", len(raw_deals))
+            products_to_add = []
 
-            if not raw_deals:
+            # 1. Amazon.in Scraping & Processing
+            logger.info("Scraping deal items from Amazon India...")
+            amazon_deals = self.amazon_scraper.scrape_todays_deals()
+            logger.info("Scraped %d raw deal items from Amazon India.", len(amazon_deals))
+            if amazon_deals:
+                amazon_products = self.processor.process_and_rank_deals(
+                    amazon_deals, existing_entries, scraper=self.amazon_scraper, provider="Amazon"
+                )
+                products_to_add.extend(amazon_products)
+                for p in amazon_products:
+                    existing_entries.add(p.name.strip().lower())
+                    existing_entries.add(p.affiliate_link.strip().lower())
 
-                logger.warning("No deals fetched from Amazon India in this run.")
-                return 0
-
-            products_to_add = self.processor.process_and_rank_deals(raw_deals, existing_entries, self.scraper)
-
+            # 2. Ajio.com Scraping & Processing
+            logger.info("Scraping deal items from Ajio.com...")
+            ajio_deals = self.ajio_scraper.scrape_todays_deals()
+            logger.info("Scraped %d raw deal items from Ajio.com.", len(ajio_deals))
+            if ajio_deals:
+                ajio_products = self.processor.process_and_rank_deals(
+                    ajio_deals, existing_entries, scraper=self.ajio_scraper, provider="Ajio"
+                )
+                products_to_add.extend(ajio_products)
 
             if not products_to_add:
-                logger.info("No new qualified deals to append after filtering & deduplication.")
+                logger.info("No new qualified deals from Amazon or Ajio to append after filtering & deduplication.")
                 return 0
 
             appended_count = self.sheet_client.append_products(products_to_add)
-            logger.info("Successfully appended %d new top deals to Google Sheet.", appended_count)
+            logger.info("Successfully appended %d new top deals (Multi-Platform) to Google Sheet.", appended_count)
 
             log_activity(
-                product_name=f"Batch Append ({appended_count} Amazon.in deals)",
-                link="https://www.amazon.in/deals",
+                product_name=f"Batch Append ({appended_count} Multi-Platform deals)",
+                link="https://www.amazon.in/deals / https://www.ajio.com",
                 status="SUCCESS",
                 error_message=""
             )
@@ -120,14 +138,14 @@ class ScraperDaemon:
         except Exception as e:
             logger.error("Scraper daemon run failed: %s", e, exc_info=True)
             notify_admin_email(
-                subject="Amazon Scraper Daemon Failure",
-                message_body=f"The Amazon India deal populator service failed with error:\n\n{e}"
+                subject="Multi-Platform Scraper Daemon Failure",
+                message_body=f"The deal populator service failed with error:\n\n{e}"
             )
             return 0
 
     def run_daemon(self, interval_hours: float = SCRAPER_INTERVAL_HOURS):
         """Runs the scraper continuously in daemon mode."""
-        logger.info("Starting Amazon Scraper Daemon (Interval: %.1f hours)...", interval_hours)
+        logger.info("Starting Multi-Platform Scraper Daemon (Interval: %.1f hours)...", interval_hours)
         interval_seconds = interval_hours * 3600
 
         while True:
